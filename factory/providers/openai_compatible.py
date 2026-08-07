@@ -1,11 +1,8 @@
-"""OpenAI-compatible model provider using only the Python standard library.
-
-The endpoint, API key, and model are supplied through environment variables so
-secrets never live in the repository.
-"""
+"""OpenAI-compatible model provider using only the Python standard library."""
 
 import json
 import os
+import urllib.error
 import urllib.request
 
 from .base import ModelProvider, ModelResponse
@@ -51,6 +48,12 @@ class OpenAICompatibleProvider(ModelProvider):
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 data = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="replace")[:2000]
+            except Exception:
+                body = "<unable to read provider response>"
+            raise RuntimeError(f"Model provider HTTP {exc.code}: {body}") from exc
         except Exception as exc:
             raise RuntimeError(f"Model provider request failed: {exc}") from exc
 
