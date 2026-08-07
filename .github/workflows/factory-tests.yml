@@ -17,6 +17,8 @@ env:
   AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
   AI_FACTORY_GROQ_KEY: ${{ secrets.AI_FACTORY_GROQ_KEY }}
   AI_FACTORY_GROQ_MODEL: ${{ secrets.AI_FACTORY_GROQ_MODEL }}
+  AI_FACTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  AI_FACTORY_GITHUB_MODEL: ${{ secrets.AI_FACTORY_GITHUB_MODEL }}
   AI_FACTORY_OPENROUTER_KEY: ${{ secrets.AI_FACTORY_OPENROUTER_KEY }}
   AI_FACTORY_OPENROUTER_MODEL: ${{ secrets.AI_FACTORY_OPENROUTER_MODEL }}
 
@@ -33,6 +35,8 @@ jobs:
       - name: Compile Factory
         run: python -m compileall factory
       - name: Run Factory smoke test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python -m factory "Create a research assistant"
       - name: Run example tests
         run: python -m unittest discover -s factory/examples -p 'test_*.py'
@@ -48,6 +52,8 @@ jobs:
           AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
           AI_FACTORY_GROQ_KEY: ${{ secrets.AI_FACTORY_GROQ_KEY }}
           AI_FACTORY_GROQ_MODEL: ${{ secrets.AI_FACTORY_GROQ_MODEL }}
+          AI_FACTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_FACTORY_GITHUB_MODEL: ${{ secrets.AI_FACTORY_GITHUB_MODEL }}
         run: python -m factory.examples.autonomous_demo
       - name: Check configured AI providers
         env:
@@ -56,10 +62,12 @@ jobs:
           AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
           AI_FACTORY_GROQ_KEY: ${{ secrets.AI_FACTORY_GROQ_KEY }}
           AI_FACTORY_GROQ_MODEL: ${{ secrets.AI_FACTORY_GROQ_MODEL }}
+          AI_FACTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_FACTORY_GITHUB_MODEL: ${{ secrets.AI_FACTORY_GITHUB_MODEL }}
           AI_FACTORY_OPENROUTER_KEY: ${{ secrets.AI_FACTORY_OPENROUTER_KEY }}
           AI_FACTORY_OPENROUTER_MODEL: ${{ secrets.AI_FACTORY_OPENROUTER_MODEL }}
         run: |
-          if [ -z "$AI_FACTORY_GEMINI_KEY" ] && [ -z "$AI_FACTORY_GROQ_KEY" ] && [ -z "$AI_FACTORY_OPENROUTER_KEY" ]; then
+          if [ -z "$AI_FACTORY_GEMINI_KEY" ] && [ -z "$AI_FACTORY_GROQ_KEY" ] && [ -z "$AI_FACTORY_GITHUB_TOKEN" ] && [ -z "$AI_FACTORY_OPENROUTER_KEY" ]; then
             echo "No AI provider secrets are configured; skipping provider check."
             exit 0
           fi
