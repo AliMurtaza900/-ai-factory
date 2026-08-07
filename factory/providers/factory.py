@@ -6,6 +6,7 @@ from .base import ModelProvider
 from .cached import CachedProvider
 from .fallback import FallbackProvider
 from .gemini import GeminiProvider
+from .github_models import GitHubModelsProvider
 from .groq import GroqProvider
 from .openai_compatible import OpenAICompatibleProvider
 
@@ -23,7 +24,7 @@ def _optional_openai_compatible(prefix: str, default_url: str) -> ModelProvider 
 
 
 def configured_provider() -> ModelProvider:
-    """Return a cached provider chain, preferring Gemini then Groq then OpenRouter."""
+    """Return a cached provider chain: Gemini -> Groq -> GitHub Models -> OpenRouter."""
     providers: list[ModelProvider] = []
 
     gemini_key = os.getenv("AI_FACTORY_GEMINI_KEY") or os.getenv("AI_FACTORY_API_KEY")
@@ -35,6 +36,11 @@ def configured_provider() -> ModelProvider:
     groq_model = os.getenv("AI_FACTORY_GROQ_MODEL") or "llama-3.1-8b-instant"
     if groq_key:
         providers.append(GroqProvider(api_key=groq_key, model=groq_model))
+
+    github_token = os.getenv("AI_FACTORY_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN")
+    github_model = os.getenv("AI_FACTORY_GITHUB_MODEL") or "openai/gpt-4.1-mini"
+    if github_token:
+        providers.append(GitHubModelsProvider(token=github_token, model=github_model))
 
     openrouter = _optional_openai_compatible("AI_FACTORY_OPENROUTER", "https://openrouter.ai/api/v1")
     if openrouter:
