@@ -13,6 +13,12 @@ env:
   AI_FACTORY_PROVIDER: gemini
   AI_FACTORY_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
   AI_FACTORY_BASE_URL: ${{ secrets.AI_FACTORY_BASE_URL }}
+  AI_FACTORY_GEMINI_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
+  AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
+  AI_FACTORY_GROQ_KEY: ${{ secrets.AI_FACTORY_GROQ_KEY }}
+  AI_FACTORY_GROQ_MODEL: ${{ secrets.AI_FACTORY_GROQ_MODEL }}
+  AI_FACTORY_OPENROUTER_KEY: ${{ secrets.AI_FACTORY_OPENROUTER_KEY }}
+  AI_FACTORY_OPENROUTER_MODEL: ${{ secrets.AI_FACTORY_OPENROUTER_MODEL }}
 
 jobs:
   test:
@@ -39,12 +45,12 @@ jobs:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
           AI_FACTORY_ENABLE_LLM_REVISION: "1"
         run: python -m factory.examples.autonomous_demo
-      - name: Check Gemini configuration
+      - name: Check configured AI providers
         env:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
         run: |
-          if [ -z "$AI_FACTORY_API_KEY" ] || [ -z "$AI_FACTORY_MODEL" ]; then
-            echo "Gemini secrets are not configured; skipping provider check."
+          if [ -z "$AI_FACTORY_GEMINI_KEY" ] && [ -z "$AI_FACTORY_GROQ_KEY" ] && [ -z "$AI_FACTORY_OPENROUTER_KEY" ]; then
+            echo "No AI provider secrets are configured; skipping provider check."
             exit 0
           fi
           python -m factory.providers.provider_check
