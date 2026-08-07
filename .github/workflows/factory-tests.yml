@@ -10,6 +10,7 @@ permissions:
   contents: read
 
 env:
+  AI_FACTORY_PROVIDER: gemini
   AI_FACTORY_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
   AI_FACTORY_BASE_URL: ${{ secrets.AI_FACTORY_BASE_URL }}
 
@@ -32,12 +33,12 @@ jobs:
           python -m unittest discover -s factory/examples -p 'test_*.py'
       - name: Run autonomous Factory demonstration
         run: python -m factory.examples.autonomous_demo
-      - name: Check LLM configuration
+      - name: Check Gemini configuration
         env:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
         run: |
           if [ -z "$AI_FACTORY_API_KEY" ] || [ -z "$AI_FACTORY_MODEL" ]; then
-            echo "LLM secrets are not configured; skipping provider check."
+            echo "Gemini secrets are not configured; skipping provider check."
             exit 0
           fi
           python -m factory.providers.provider_check
