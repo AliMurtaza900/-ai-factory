@@ -1,4 +1,4 @@
-"""Try configured AI providers in order, skipping unconfigured providers."""
+"""Availability-aware fallback provider chain."""
 
 from .base import ModelProvider, ModelResponse
 
@@ -10,10 +10,14 @@ class FallbackProvider(ModelProvider):
         self.providers = providers
 
     def generate(self, prompt: str, *, system: str | None = None) -> ModelResponse:
-        errors = []
+        errors: list[str] = []
         for provider in self.providers:
             try:
-                return provider.generate(prompt, system=system)
+                result = provider.generate(prompt, system=system)
+                print(f"provider: {provider.name} available -> success")
+                return result
             except Exception as exc:
-                errors.append(f"{provider.name}: {exc}")
+                message = str(exc).replace("\n", " ")
+                errors.append(f"{provider.name}: {message}")
+                print(f"provider: {provider.name} unavailable -> skip: {message}")
         raise RuntimeError("All configured AI providers failed: " + " | ".join(errors))
