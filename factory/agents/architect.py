@@ -33,7 +33,7 @@ class ArchitectAgent:
                 "Produces the declared output",
                 "Reports uncertainty when required",
             ],
-            metadata={"created_by": self.role, "source_goal": clean},
+            metadata={"created_by": "architect", "source_goal": clean},
         )
 
     def _llm_design(self, goal: str) -> AgentSpec:
