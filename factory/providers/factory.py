@@ -24,7 +24,7 @@ def _optional_openai_compatible(prefix: str, default_url: str) -> ModelProvider 
 
 
 def configured_provider() -> ModelProvider:
-    """Return a cached provider chain: Gemini -> Groq -> GitHub Models -> OpenRouter."""
+    """Return provider chain: Gemini -> Groq -> GitHub Models -> OpenAI -> OpenRouter."""
     providers: list[ModelProvider] = []
 
     gemini_key = os.getenv("AI_FACTORY_GEMINI_KEY") or os.getenv("AI_FACTORY_API_KEY")
@@ -41,6 +41,15 @@ def configured_provider() -> ModelProvider:
     github_model = os.getenv("AI_FACTORY_GITHUB_MODEL") or "openai/gpt-4.1-mini"
     if github_token:
         providers.append(GitHubModelsProvider(token=github_token, model=github_model))
+
+    openai_key = os.getenv("AI_FACTORY_OPENAI_KEY")
+    openai_model = os.getenv("AI_FACTORY_OPENAI_MODEL") or "gpt-5.6"
+    if openai_key:
+        providers.append(OpenAICompatibleProvider(
+            api_key=openai_key,
+            model=openai_model,
+            base_url="https://api.openai.com/v1",
+        ))
 
     openrouter = _optional_openai_compatible("AI_FACTORY_OPENROUTER", "https://openrouter.ai/api/v1")
     if openrouter:
