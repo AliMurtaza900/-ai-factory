@@ -1,0 +1,1 @@
+"""Factory-native AI roles."""
