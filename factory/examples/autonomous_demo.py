@@ -15,36 +15,37 @@ def main() -> None:
 
     passing = EvaluationReport(
         agent_name=design.spec.name,
-        results=[
-            TestResult(
-                test_name="scaffold-created",
-                status=EvaluationStatus.PASSED,
-                passed=True,
-                message="Factory produced a valid agent scaffold",
-            )
-        ],
+        results=[TestResult(
+            test_name="scaffold-created",
+            status=EvaluationStatus.PASSED,
+            passed=True,
+            message="Factory produced a valid agent scaffold",
+        )],
     )
     print(f"v1: {design.spec.name} score={passing.score:.2f} passed={passing.passed}")
 
     failing = EvaluationReport(
         agent_name=design.spec.name,
-        results=[
-            TestResult(
-                test_name="structured-output",
-                status=EvaluationStatus.FAILED,
-                passed=False,
-                message="Demonstration failure used to exercise the improvement path",
-                actual={"format": "plain"},
-                expected={"format": "structured"},
-            )
-        ],
+        results=[TestResult(
+            test_name="structured-output",
+            status=EvaluationStatus.FAILED,
+            passed=False,
+            message="Demonstration failure used to exercise the improvement path",
+            actual={"format": "plain"},
+            expected={"format": "structured"},
+        )],
     )
 
     backend = None
     if os.getenv("AI_FACTORY_ENABLE_LLM_REVISION", "0").lower() in {"1", "true", "yes"}:
         backend = LLMRevisionBackend(configured_provider())
 
-    cycle = ImprovementEngine(backend=backend).analyze(failing)
+    try:
+        cycle = ImprovementEngine(backend=backend).analyze(failing)
+    except Exception as exc:
+        print(f"LLM improvement unavailable -> continuing without proposals: {exc}")
+        cycle = ImprovementEngine().analyze(failing)
+
     print(f"improvement tasks={len(cycle.plan.tasks)} retryable={cycle.plan.actionable}")
     print(f"LLM proposals={len(cycle.proposed_changes)}")
     for proposal in cycle.proposed_changes:
