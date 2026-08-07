@@ -1,8 +1,12 @@
 """Exercise the Factory's real design -> build -> evaluate -> improve path."""
 
+import os
+
 from factory.agents.factory_agent import FactoryAgent
 from factory.evaluation.models import EvaluationReport, EvaluationStatus, TestResult
 from factory.improvement.engine import ImprovementEngine
+from factory.providers.factory import configured_provider
+from factory.providers.revision_backend import LLMRevisionBackend
 
 
 def main() -> None:
@@ -35,8 +39,16 @@ def main() -> None:
             )
         ],
     )
-    cycle = ImprovementEngine().analyze(failing)
+
+    backend = None
+    if os.getenv("AI_FACTORY_ENABLE_LLM_REVISION", "0").lower() in {"1", "true", "yes"}:
+        backend = LLMRevisionBackend(configured_provider())
+
+    cycle = ImprovementEngine(backend=backend).analyze(failing)
     print(f"improvement tasks={len(cycle.plan.tasks)} retryable={cycle.plan.actionable}")
+    print(f"LLM proposals={len(cycle.proposed_changes)}")
+    for proposal in cycle.proposed_changes:
+        print(f"proposal: {proposal}")
 
 
 if __name__ == "__main__":
