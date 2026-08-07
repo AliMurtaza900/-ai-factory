@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+env:
+  AI_FACTORY_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
+  AI_FACTORY_BASE_URL: ${{ secrets.AI_FACTORY_BASE_URL }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -28,3 +32,8 @@ jobs:
           python -m unittest discover -s factory/examples -p 'test_*.py'
       - name: Run autonomous Factory demonstration
         run: python -m factory.examples.autonomous_demo
+      - name: Check LLM configuration
+        if: ${{ secrets.AI_FACTORY_API_KEY != '' && secrets.AI_FACTORY_MODEL != '' }}
+        env:
+          AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
+        run: python -m factory.providers.provider_check
