@@ -29,9 +29,10 @@ jobs:
       - name: Run Factory smoke test
         run: python -m factory "Create a research assistant"
       - name: Run example tests
-        run: |
-          python -m unittest discover -s factory/examples -p 'test_*.py'
-      - name: Run patch gate demonstration
+        run: python -m unittest discover -s factory/examples -p 'test_*.py'
+      - name: Run Patch Gate unit tests
+        run: python -m unittest factory.examples.test_patch_gate
+      - name: Run Patch Gate demonstration
         run: python -m factory.examples.patch_gate_demo
       - name: Run autonomous Factory demonstration with real LLM revision
         env:
