@@ -33,7 +33,11 @@ jobs:
       - name: Run autonomous Factory demonstration
         run: python -m factory.examples.autonomous_demo
       - name: Check LLM configuration
-        if: ${{ secrets.AI_FACTORY_API_KEY != '' && secrets.AI_FACTORY_MODEL != '' }}
         env:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
-        run: python -m factory.providers.provider_check
+        run: |
+          if [ -z "$AI_FACTORY_API_KEY" ] || [ -z "$AI_FACTORY_MODEL" ]; then
+            echo "LLM secrets are not configured; skipping provider check."
+            exit 0
+          fi
+          python -m factory.providers.provider_check
