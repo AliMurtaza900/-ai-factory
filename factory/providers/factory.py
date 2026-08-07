@@ -8,6 +8,7 @@ from .fallback import FallbackProvider
 from .gemini import GeminiProvider
 from .github_models import GitHubModelsProvider
 from .groq import GroqProvider
+from .cerebras import CerebrasProvider
 from .openai_compatible import OpenAICompatibleProvider
 
 
@@ -24,7 +25,7 @@ def _optional_openai_compatible(prefix: str, default_url: str) -> ModelProvider 
 
 
 def configured_provider() -> ModelProvider:
-    """Return provider chain: Gemini -> Groq -> GitHub Models -> OpenAI -> OpenRouter."""
+    """Return provider chain: Gemini -> Groq -> GitHub Models -> OpenAI -> Cerebras -> OpenRouter."""
     providers: list[ModelProvider] = []
 
     gemini_key = os.getenv("AI_FACTORY_GEMINI_KEY") or os.getenv("AI_FACTORY_API_KEY")
@@ -45,11 +46,12 @@ def configured_provider() -> ModelProvider:
     openai_key = os.getenv("AI_FACTORY_OPENAI_KEY")
     openai_model = os.getenv("AI_FACTORY_OPENAI_MODEL") or "gpt-5.6"
     if openai_key:
-        providers.append(OpenAICompatibleProvider(
-            api_key=openai_key,
-            model=openai_model,
-            base_url="https://api.openai.com/v1",
-        ))
+        providers.append(OpenAICompatibleProvider(api_key=openai_key, model=openai_model, base_url="https://api.openai.com/v1"))
+
+    cerebras_key = os.getenv("AI_FACTORY_CEREBRAS_KEY")
+    cerebras_model = os.getenv("AI_FACTORY_CEREBRAS_MODEL") or "llama-3.1-8b"
+    if cerebras_key:
+        providers.append(CerebrasProvider(api_key=cerebras_key, model=cerebras_model))
 
     openrouter = _optional_openai_compatible("AI_FACTORY_OPENROUTER", "https://openrouter.ai/api/v1")
     if openrouter:
