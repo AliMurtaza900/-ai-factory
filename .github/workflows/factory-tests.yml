@@ -5,6 +5,17 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      goal:
+        description: "Goal for the AI Factory to build"
+        required: true
+        default: "Create an AI research assistant that researches a topic, compares information, identifies uncertainty, and produces a structured report."
+        type: string
+      max_attempts:
+        description: "Maximum bounded Factory attempts"
+        required: false
+        default: "2"
+        type: string
 
 permissions:
   contents: read
@@ -86,3 +97,8 @@ jobs:
             exit 0
           fi
           python -m factory.providers.provider_check
+      - name: Run requested Factory goal
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m factory "${{ inputs.goal }}" --max-attempts "${{ inputs.max_attempts }}"
