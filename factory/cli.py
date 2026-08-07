@@ -1,40 +1,26 @@
-"""Command-line interface for building AI agents from natural-language goals."""
+"""Command-line interface for the end-to-end AI Factory workflow."""
 
 import argparse
-import re
-from pathlib import Path
 
-from .agents.factory_agent import FactoryAgent
-from .materializer.filesystem import FileSystemMaterializer
-
-
-def _workspace_name(name: str) -> str:
-    value = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return value or "generated-agent"
+from .run import run_factory
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="AI Factory")
     parser.add_argument("goal", help="Describe the AI system to build")
-    parser.add_argument(
-        "--workspace",
-        default=None,
-        help="Directory where the generated agent project will be written",
-    )
+    parser.add_argument("--workspace", default="generated", help="Root directory for generated agents")
+    parser.add_argument("--max-attempts", type=int, default=2, help="Maximum bounded Factory attempts")
     args = parser.parse_args()
 
-    factory = FactoryAgent()
-    design = factory.design_and_scaffold(args.goal)
+    result = run_factory(args.goal, output_root=args.workspace, max_attempts=args.max_attempts)
+    print(f"agent: {result.goal}")
+    print(f"passed: {result.passed}")
+    print(f"attempts: {result.attempts}")
+    print(f"reused_patterns: {result.reused_patterns}")
+    print(f"output: {result.output_dir.resolve()}")
 
-    workspace = Path(args.workspace) if args.workspace else Path("generated") / _workspace_name(design.spec.name)
-    written = FileSystemMaterializer().materialize(workspace, design.files)
-
-    print(f"agent: {design.spec.name}")
-    print(f"purpose: {design.spec.purpose}")
-    print(f"workspace: {workspace.resolve()}")
-    print(f"files: {len(written)}")
-    for path in written:
-        print(f"created: {path.relative_to(workspace.resolve())}")
+    if not result.passed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
