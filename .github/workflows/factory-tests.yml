@@ -44,10 +44,20 @@ jobs:
         env:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
           AI_FACTORY_ENABLE_LLM_REVISION: "1"
+          AI_FACTORY_GEMINI_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
+          AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
+          AI_FACTORY_GROQ_KEY: ${{ secrets.AI_FACTORY_GROQ_KEY }}
+          AI_FACTORY_GROQ_MODEL: ${{ secrets.AI_FACTORY_GROQ_MODEL }}
         run: python -m factory.examples.autonomous_demo
       - name: Check configured AI providers
         env:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
+          AI_FACTORY_GEMINI_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
+          AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
+          AI_FACTORY_GROQ_KEY: ${{ secrets.AI_FACTORY_GROQ_KEY }}
+          AI_FACTORY_GROQ_MODEL: ${{ secrets.AI_FACTORY_GROQ_MODEL }}
+          AI_FACTORY_OPENROUTER_KEY: ${{ secrets.AI_FACTORY_OPENROUTER_KEY }}
+          AI_FACTORY_OPENROUTER_MODEL: ${{ secrets.AI_FACTORY_OPENROUTER_MODEL }}
         run: |
           if [ -z "$AI_FACTORY_GEMINI_KEY" ] && [ -z "$AI_FACTORY_GROQ_KEY" ] && [ -z "$AI_FACTORY_OPENROUTER_KEY" ]; then
             echo "No AI provider secrets are configured; skipping provider check."
