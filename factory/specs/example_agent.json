@@ -1,0 +1,20 @@
+{
+  "name": "example-research-agent",
+  "purpose": "Research a topic and return a concise, sourced brief.",
+  "role": "researcher",
+  "inputs": ["topic"],
+  "outputs": ["research_brief"],
+  "capabilities": ["web research", "summarization", "source tracking"],
+  "constraints": ["do not invent sources", "separate facts from assumptions"],
+  "tools": [],
+  "model_provider": null,
+  "model": null,
+  "acceptance_criteria": [
+    "Every factual claim has a traceable source",
+    "The output follows the requested format",
+    "The agent reports uncertainty when evidence is insufficient"
+  ],
+  "metadata": {
+    "version": 1
+  }
+}
