@@ -25,6 +25,7 @@ env:
   AI_FACTORY_CEREBRAS_MODEL: ${{ secrets.AI_FACTORY_CEREBRAS_MODEL }}
   AI_FACTORY_OPENROUTER_KEY: ${{ secrets.AI_FACTORY_OPENROUTER_KEY }}
   AI_FACTORY_OPENROUTER_MODEL: ${{ secrets.AI_FACTORY_OPENROUTER_MODEL }}
+  AI_FACTORY_ENABLE_LLM_ARCHITECT: "1"
 
 jobs:
   test:
@@ -51,6 +52,7 @@ jobs:
       - name: Run autonomous Factory demonstration with real LLM revision
         env:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
+          AI_FACTORY_ENABLE_LLM_ARCHITECT: "1"
           AI_FACTORY_ENABLE_LLM_REVISION: "1"
           AI_FACTORY_GEMINI_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
           AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
