@@ -101,4 +101,22 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python -m factory "${{ inputs.goal }}" --max-attempts "${{ inputs.max_attempts }}"
+        run: |
+          python -m factory "${{ inputs.goal }}" --max-attempts "${{ inputs.max_attempts }}"
+          echo "Generated files:"
+          find generated -maxdepth 6 -type f -print | sort
+      - name: Package generated agent
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          test -d generated
+          tar -czf ai-factory-generated-agent.tar.gz generated
+      - name: Upload generated agent artifact
+        if: ${{ github.event_name == 'workflow_dispatch' && always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-factory-generated-agent-${{ github.run_number }}
+          path: |
+            ai-factory-generated-agent.tar.gz
+            generated/**
+          if-no-files-found: error
+          retention-days: 14
