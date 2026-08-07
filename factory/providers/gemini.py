@@ -2,6 +2,7 @@
 
 import json
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -22,17 +23,24 @@ class GeminiProvider(ModelProvider):
         if not self.model:
             raise RuntimeError("AI_FACTORY_MODEL is not configured")
 
-        contents = []
+        model = self.model.strip()
+        if model.startswith("models/"):
+            model = model[len("models/"):]
+
+        payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
         if system:
-            contents.append({"role": "user", "parts": [{"text": system}]})
-        contents.append({"role": "user", "parts": [{"text": prompt}]})
-        payload = json.dumps({"contents": contents}).encode("utf-8")
+            payload["systemInstruction"] = {"parts": [{"text": system}]}
+
+        body = json.dumps(payload).encode("utf-8")
         query = urllib.parse.urlencode({"key": self.api_key})
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{urllib.parse.quote(self.model, safe='')}:generateContent?{query}"
-        request = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{urllib.parse.quote(model, safe='')}:generateContent?{query}"
+        request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 data = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:1000]
+            raise RuntimeError(f"Gemini request failed: HTTP {exc.code}: {detail}") from exc
         except Exception as exc:
             raise RuntimeError(f"Gemini request failed: {exc}") from exc
 
@@ -40,4 +48,4 @@ class GeminiProvider(ModelProvider):
             text = data["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, TypeError) as exc:
             raise RuntimeError("Gemini returned an unexpected response") from exc
-        return ModelResponse(text=text, provider=self.name, model=self.model)
+        return ModelResponse(text=text, provider=self.name, model=model)
