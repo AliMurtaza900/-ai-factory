@@ -31,6 +31,8 @@ jobs:
       - name: Run example tests
         run: |
           python -m unittest discover -s factory/examples -p 'test_*.py'
+      - name: Run patch gate demonstration
+        run: python -m factory.examples.patch_gate_demo
       - name: Run autonomous Factory demonstration with real LLM revision
         env:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
