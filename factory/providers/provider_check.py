@@ -1,10 +1,14 @@
 """Non-destructive check that the configured model provider is reachable."""
 
+import os
+
+from .gemini import GeminiProvider
 from .openai_compatible import OpenAICompatibleProvider
 
 
 def main() -> None:
-    provider = OpenAICompatibleProvider()
+    provider_name = os.getenv("AI_FACTORY_PROVIDER", "gemini").lower()
+    provider = GeminiProvider() if provider_name == "gemini" else OpenAICompatibleProvider()
     result = provider.generate(
         "Reply with exactly: FACTORY_LLM_OK",
         system="You are a connectivity test. Do not modify files or perform actions.",
