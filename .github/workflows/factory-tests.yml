@@ -26,3 +26,5 @@ jobs:
       - name: Run example tests
         run: |
           python -m unittest discover -s factory/examples -p 'test_*.py'
+      - name: Run autonomous Factory demonstration
+        run: python -m factory.examples.autonomous_demo
