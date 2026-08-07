@@ -12,13 +12,13 @@ class FactoryEvaluator:
     """Evaluate generated artifacts without requiring an external AI provider."""
 
     def evaluate(self, spec: AgentSpec, files: list[GeneratedFile]) -> EvaluationReport:
-        results: list[TestResult] = []
         by_path = {file.path: file.content for file in files}
-
-        results.append(self._required_files(by_path))
-        results.append(self._python_syntax(by_path))
-        results.append(self._spec_matches(spec, by_path))
-        results.append(self._runtime_contract(by_path))
+        results = [
+            self._required_files(by_path),
+            self._python_syntax(by_path),
+            self._spec_matches(spec, by_path),
+            self._runtime_contract(by_path),
+        ]
         return EvaluationReport(agent_name=spec.name, results=results)
 
     @staticmethod
@@ -28,7 +28,7 @@ class FactoryEvaluator:
         missing = sorted(required - found)
         return TestResult(
             test_name="required-artifacts",
-            status=EvaluationStatus.PAUSED if False else (EvaluationStatus.FAILED if missing else EvaluationStatus.PASSED),
+            status=EvaluationStatus.FAILED if missing else EvaluationStatus.PASSED,
             passed=not missing,
             message="missing files: " + ", ".join(missing) if missing else "all required artifacts present",
         )
