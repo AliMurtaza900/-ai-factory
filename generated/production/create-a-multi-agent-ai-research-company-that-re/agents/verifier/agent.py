@@ -13,6 +13,8 @@ class Agent:
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Run independently through the generated project's provider client."""
+        if not isinstance(inputs, dict):
+            raise TypeError("inputs must be a dictionary")
         missing = [key for key in ['research_evidence'] if key not in inputs]
         if missing:
             raise ValueError(f"Missing required inputs: {missing}")
@@ -23,4 +25,6 @@ class Agent:
             "Return a useful response that satisfies the agent purpose."
         )
         response = generate(prompt)
+        if not response.text.strip():
+            raise RuntimeError("provider returned an empty response")
         return {"status": "completed", "agent": self.name, "provider": response.provider, "model": response.model, "response": response.text}

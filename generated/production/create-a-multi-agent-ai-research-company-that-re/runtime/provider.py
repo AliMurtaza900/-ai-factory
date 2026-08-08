@@ -1,4 +1,4 @@
-"""Standalone provider client used by generated agents."""
+"""Standalone provider client for generated agents."""
 
 import json
 import os
@@ -21,23 +21,25 @@ _MAX_RETRIES = 3
 
 def _mock(prompt: str, reason: str = "deterministic offline mode") -> Response:
     lower = prompt.lower()
-    if "research" in lower:
-        text = "Offline research result: live-source evidence requires an available provider and should be verified before production use."
-    elif "verif" in lower:
-        text = "Offline verification result: evidence was structurally checked; live factual verification requires an available provider."
-    elif "market" in lower or "financial" in lower:
-        text = "Offline market analysis result: financial and market conclusions require live evidence; this fallback confirms pipeline execution."
-    elif "risk" in lower:
-        text = "Offline risk assessment result: provider availability and evidence quality are identified as risks requiring live verification."
-    elif "review" in lower:
+    if "final reviewer" in lower or "reviewer" in lower:
         text = "Offline final review result: the pipeline completed successfully; live-provider and evidence caveats are retained."
+    elif "risk analyst" in lower or "risk" in lower:
+        text = "Offline risk assessment result: provider availability and evidence quality are identified as risks requiring live verification."
+    elif "market analyst" in lower or "market analysis" in lower or "financial" in lower:
+        text = "Offline market analysis result: financial and market conclusions require live evidence; this fallback confirms pipeline execution."
+    elif "verifier" in lower or "verif" in lower:
+        text = "Offline verification result: supplied evidence was structurally checked; live factual verification requires an available provider."
+    elif "researcher" in lower or "research" in lower:
+        text = "Offline research result: live-source evidence requires an available provider and should be verified before production use."
+    elif "writer" in lower or "executive" in lower:
+        text = "Offline executive report result: the report pipeline completed; live evidence is required for factual conclusions."
     else:
         text = "Offline generated response: the standalone system completed its requested pipeline without a live provider."
     return Response("offline", "deterministic-fallback", f"{text} ({reason})")
 
 
 def generate(prompt: str) -> Response:
-    """Generate text; provider outages do not crash the standalone system."""
+    """Generate text using configured providers, never making provider outage a system crash."""
     if os.getenv("AI_FACTORY_MOCK", "").lower() in {"1", "true", "yes", "on"}:
         return _mock(prompt)
 
@@ -58,13 +60,11 @@ def generate(prompt: str) -> Response:
                 data = _post(url, body, {})
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
             else:
-                urls = {
-                    "openai": "https://api.openai.com/v1/chat/completions",
-                    "cerebras": "https://api.cerebras.ai/v1/chat/completions",
-                    "openrouter": "https://openrouter.ai/api/v1/chat/completions",
-                }
+                urls = {"openai": "https://api.openai.com/v1/chat/completions", "cerebras": "https://api.cerebras.ai/v1/chat/completions", "openrouter": "https://openrouter.ai/api/v1/chat/completions"}
                 data = _post(urls[provider], {"model": model, "messages": [{"role": "user", "content": prompt}]}, {"Authorization": f"Bearer {key}"})
                 text = data["choices"][0]["message"]["content"]
+            if not isinstance(text, str) or not text.strip():
+                raise RuntimeError("provider returned an empty response")
             return Response(provider, model, text)
         except Exception as exc:
             errors.append(f"{provider}: {exc}")

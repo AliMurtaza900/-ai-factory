@@ -1,4 +1,4 @@
-"""Runnable end-to-end orchestrator for the generated research company."""
+"""Runnable end-to-end orchestrator for the generated team."""
 
 import argparse
 import json
@@ -11,14 +11,14 @@ from agents.writer.agent import Agent as WriterAgent
 from agents.reviewer.agent import Agent as ReviewerAgent
 
 AGENTS = {
-    "researcher": ResearcherAgent,
-    "verifier": VerifierAgent,
-    "market_analyst": MarketAnalystAgent,
-    "risk_analyst": RiskAnalystAgent,
-    "writer": WriterAgent,
-    "reviewer": ReviewerAgent,
+    'researcher': ResearcherAgent,
+    'verifier': VerifierAgent,
+    'market_analyst': MarketAnalystAgent,
+    'risk_analyst': RiskAnalystAgent,
+    'writer': WriterAgent,
+    'reviewer': ReviewerAgent,
 }
-EXECUTION_ORDER = ["researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"]
+EXECUTION_ORDER = ['researcher', 'verifier', 'market_analyst', 'risk_analyst', 'writer', 'reviewer']
 
 
 def run(business_question: str) -> dict:
@@ -37,19 +37,27 @@ def run(business_question: str) -> dict:
         outputs[name] = result
         return result["response"]
 
-    research = execute("researcher", {"business_question": business_question})
-    verified = execute("verifier", {"research_evidence": research})
-    market = execute("market_analyst", {"verified_evidence": verified})
-    risks = execute("risk_analyst", {"verified_evidence": verified, "market_analysis": market})
-    report = execute("writer", {"verified_evidence": verified, "market_analysis": market, "risk_assessment": risks})
-    execute("reviewer", {"executive_report": report, "risk_assessment": risks})
-    reviewed = outputs["reviewer"]
+    execute("researcher", {"business_question": business_question})
+    execute("verifier", {"research_evidence": outputs["researcher"]["response"]})
+    execute("market_analyst", {"verified_evidence": outputs["verifier"]["response"]})
+    execute("risk_analyst", {"verified_evidence": outputs["verifier"]["response"], "market_analysis": outputs["market_analyst"]["response"]})
+    execute("writer", {"verified_evidence": outputs["verifier"]["response"], "market_analysis": outputs["market_analyst"]["response"], "risk_assessment": outputs["risk_analyst"]["response"]})
+    execute("reviewer", {"executive_report": outputs["writer"]["response"], "risk_assessment": outputs["risk_analyst"]["response"]})
 
-    return {"status": "completed", "business_question": business_question, "agents": EXECUTION_ORDER.copy(), "outputs": outputs, "final_report": reviewed}
+    if set(outputs) != set(EXECUTION_ORDER):
+        raise RuntimeError("Generated team did not execute every declared agent")
+    final_report = outputs["reviewer"]
+    return {
+        "status": "completed",
+        "business_question": business_question,
+        "agents": EXECUTION_ORDER.copy(),
+        "outputs": outputs,
+        "final_report": final_report,
+    }
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the generated multi-agent research system")
+    parser = argparse.ArgumentParser(description="Run the generated multi-agent system")
     parser.add_argument("question", help="Business/research question")
     parser.add_argument("--json", action="store_true", help="Print JSON output")
     args = parser.parse_args()
