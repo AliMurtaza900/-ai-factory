@@ -73,19 +73,22 @@ def run(business_question: str) -> dict:
         outputs[name] = result
         return result["response"]
 
-    research = execute("researcher", {{"business_question": business_question}})
-    verified = execute("verifier", {{"research_evidence": research}})
-    market = execute("market_analyst", {{"verified_evidence": verified}})
-    risks = execute("risk_analyst", {{"verified_evidence": verified, "market_analysis": market}})
-    report = execute("writer", {{"verified_evidence": verified, "market_analysis": market, "risk_assessment": risks}})
-    reviewed = execute("reviewer", {{"executive_report": report, "risk_assessment": risks}})
+    execute("researcher", {{"business_question": business_question}})
+    execute("verifier", {{"research_evidence": outputs["researcher"]["response"]}})
+    execute("market_analyst", {{"verified_evidence": outputs["verifier"]["response"]}})
+    execute("risk_analyst", {{"verified_evidence": outputs["verifier"]["response"], "market_analysis": outputs["market_analyst"]["response"]}})
+    execute("writer", {{"verified_evidence": outputs["verifier"]["response"], "market_analysis": outputs["market_analyst"]["response"], "risk_assessment": outputs["risk_analyst"]["response"]}})
+    execute("reviewer", {{"executive_report": outputs["writer"]["response"], "risk_assessment": outputs["risk_analyst"]["response"]}})
 
+    if set(outputs) != set(EXECUTION_ORDER):
+        raise RuntimeError("Generated team did not execute every declared agent")
+    final_report = outputs["reviewer"]
     return {{
         "status": "completed",
         "business_question": business_question,
-        "agents": list(outputs),
+        "agents": EXECUTION_ORDER.copy(),
         "outputs": outputs,
-        "final_report": reviewed,
+        "final_report": final_report,
     }}
 
 
