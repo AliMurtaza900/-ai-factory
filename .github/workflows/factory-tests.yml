@@ -12,7 +12,6 @@ on:
         default: "Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery."
         type: string
       max_attempts:
-        description: "Maximum bounded Factory attempts"
         required: false
         default: "5"
         type: string
@@ -23,7 +22,6 @@ permissions:
 env:
   AI_FACTORY_PROVIDER: gemini
   AI_FACTORY_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
-  AI_FACTORY_BASE_URL: ${{ secrets.AI_FACTORY_BASE_URL }}
   AI_FACTORY_GEMINI_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
   AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
   AI_FACTORY_GROQ_KEY: ${{ secrets.AI_FACTORY_GROQ_KEY }}
@@ -65,32 +63,8 @@ jobs:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
           AI_FACTORY_ENABLE_LLM_ARCHITECT: "1"
           AI_FACTORY_ENABLE_LLM_REVISION: "1"
-          AI_FACTORY_GEMINI_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
-          AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
-          AI_FACTORY_GROQ_KEY: ${{ secrets.AI_FACTORY_GROQ_KEY }}
-          AI_FACTORY_GROQ_MODEL: ${{ secrets.AI_FACTORY_GROQ_MODEL }}
-          AI_FACTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AI_FACTORY_GITHUB_MODEL: ${{ secrets.AI_FACTORY_GITHUB_MODEL }}
-          AI_FACTORY_OPENAI_KEY: ${{ secrets.AI_FACTORY_OPENAI_KEY }}
-          AI_FACTORY_OPENAI_MODEL: ${{ secrets.AI_FACTORY_OPENAI_MODEL }}
-          AI_FACTORY_CEREBRAS_KEY: ${{ secrets.AI_FACTORY_CEREBRAS_KEY }}
-          AI_FACTORY_CEREBRAS_MODEL: ${{ secrets.AI_FACTORY_CEREBRAS_MODEL }}
         run: python -m factory.examples.autonomous_demo
       - name: Diagnose configured provider chain
-        env:
-          AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
-          AI_FACTORY_GEMINI_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
-          AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
-          AI_FACTORY_GROQ_KEY: ${{ secrets.AI_FACTORY_GROQ_KEY }}
-          AI_FACTORY_GROQ_MODEL: ${{ secrets.AI_FACTORY_GROQ_MODEL }}
-          AI_FACTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AI_FACTORY_GITHUB_MODEL: ${{ secrets.AI_FACTORY_GITHUB_MODEL }}
-          AI_FACTORY_OPENAI_KEY: ${{ secrets.AI_FACTORY_OPENAI_KEY }}
-          AI_FACTORY_OPENAI_MODEL: ${{ secrets.AI_FACTORY_OPENAI_MODEL }}
-          AI_FACTORY_CEREBRAS_KEY: ${{ secrets.AI_FACTORY_CEREBRAS_KEY }}
-          AI_FACTORY_CEREBRAS_MODEL: ${{ secrets.AI_FACTORY_CEREBRAS_MODEL }}
-          AI_FACTORY_OPENROUTER_KEY: ${{ secrets.AI_FACTORY_OPENROUTER_KEY }}
-          AI_FACTORY_OPENROUTER_MODEL: ${{ secrets.AI_FACTORY_OPENROUTER_MODEL }}
         run: |
           if [ -z "$AI_FACTORY_GEMINI_KEY" ] && [ -z "$AI_FACTORY_GROQ_KEY" ] && [ -z "$AI_FACTORY_GITHUB_TOKEN" ] && [ -z "$AI_FACTORY_OPENAI_KEY" ] && [ -z "$AI_FACTORY_CEREBRAS_KEY" ] && [ -z "$AI_FACTORY_OPENROUTER_KEY" ]; then
             echo "No AI provider secrets are configured; skipping provider diagnostics."
@@ -111,24 +85,31 @@ jobs:
       - name: Verify standalone generated system
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          test -d generated/production
-          find generated/production -type f -print | grep -E '/team\.json$'
-          find generated/production -type f -print | grep -E '/SPEC\.json$'
-          find generated/production -type f -print | grep -E '/agents/.*/agent\.py$'
-          find generated/production -type f -print | grep -E '/runtime/provider\.py$'
-          test -f generated/production/requirements.txt
-          if grep -R "from factory\." generated/production; then
+          set -e
+          root="generated/production"
+          # Factory may place the generated system inside a goal-named directory.
+          if [ ! -f "$root/team.json" ] && [ ! -f "$root/runtime/provider.py" ]; then
+            candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
+            count=$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)
+            if [ "$count" -eq 1 ]; then
+              root=$(printf '%s\n' "$candidates" | head -n 1)
+            fi
+          fi
+          echo "Standalone system root: $root"
+          test -f "$root/team.json"
+          find "$root" -type f -print | grep -E '/SPEC\.json$'
+          find "$root" -type f -print | grep -E '/agents/.*/agent\.py$'
+          test -f "$root/runtime/provider.py"
+          test -f "$root/requirements.txt"
+          if grep -R "from factory\." "$root"; then
             echo "ERROR: generated system still imports Factory runtime."
             exit 1
           fi
-          python - <<'PY'
+          python - "$root" <<'PY'
           from pathlib import Path
-          import json
-          root = Path("generated/production")
-          teams = list(root.rglob("team.json"))
-          if not teams:
-              raise SystemExit("ERROR: no team.json found")
-          data = json.loads(teams[0].read_text(encoding="utf-8"))
+          import json, sys
+          root = Path(sys.argv[1])
+          data = json.loads((root / "team.json").read_text(encoding="utf-8"))
           names = {str(m.get("name", "")).lower() for m in data.get("members", [])}
           required = {"researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"}
           missing = sorted(required - names)
@@ -138,17 +119,15 @@ jobs:
           PY
       - name: Run generated-system smoke test
         if: ${{ github.event_name == 'workflow_dispatch' }}
-        env:
-          AI_FACTORY_GEMINI_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
-          AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
-          AI_FACTORY_OPENAI_KEY: ${{ secrets.AI_FACTORY_OPENAI_KEY }}
-          AI_FACTORY_OPENAI_MODEL: ${{ secrets.AI_FACTORY_OPENAI_MODEL }}
-          AI_FACTORY_CEREBRAS_KEY: ${{ secrets.AI_FACTORY_CEREBRAS_KEY }}
-          AI_FACTORY_CEREBRAS_MODEL: ${{ secrets.AI_FACTORY_CEREBRAS_MODEL }}
-          AI_FACTORY_OPENROUTER_KEY: ${{ secrets.AI_FACTORY_OPENROUTER_KEY }}
-          AI_FACTORY_OPENROUTER_MODEL: ${{ secrets.AI_FACTORY_OPENROUTER_MODEL }}
-        working-directory: generated/production
         run: |
+          set -e
+          root="generated/production"
+          if [ ! -f "$root/team.json" ] && [ ! -f "$root/runtime/provider.py" ]; then
+            candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
+            count=$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)
+            if [ "$count" -eq 1 ]; then root=$(printf '%s\n' "$candidates" | head -n 1); fi
+          fi
+          cd "$root"
           python -m compileall .
           python - <<'PY'
           import importlib, json, os
