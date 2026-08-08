@@ -19,7 +19,8 @@ class FactoryEvaluator:
     @staticmethod
     def _required_files(files: dict[str, str]) -> TestResult:
         required = {"__init__.py", "agent.py", "SPEC.json", "README.md"}
-        found = {path.rsplit("/", 1)[-1] for path in files}
+        agent_paths = [path for path in files if path.startswith("agents/")]
+        found = {path.rsplit("/", 1)[-1] for path in agent_paths}
         missing = sorted(required - found)
         return TestResult("required-artifacts", EvaluationStatus.FAILED if missing else EvaluationStatus.PASSED, not missing, "missing files: " + ", ".join(missing) if missing else "all required artifacts present")
 
@@ -36,14 +37,15 @@ class FactoryEvaluator:
 
     @staticmethod
     def _spec_matches(spec: AgentSpec, files: dict[str, str]) -> TestResult:
-        matches = [path for path in files if path.endswith("/SPEC.json")]
+        matches = [path for path in files if path.startswith("agents/") and path.endswith("/SPEC.json")]
         if not matches:
             return TestResult("spec-consistency", EvaluationStatus.FAILED, False, "SPEC.json missing")
         try:
             generated = json.loads(files[matches[0]])
             expected = spec.to_dict()
-            passed = all(generated.get(key) == value for key, value in expected.items())
-            message = "generated spec matches the approved AgentSpec" if passed else "generated SPEC.json differs from approved AgentSpec"
+            mismatches = [key for key, value in expected.items() if generated.get(key) != value]
+            passed = not mismatches
+            message = "generated spec matches the approved AgentSpec" if passed else "mismatched fields: " + ", ".join(mismatches)
         except Exception as exc:
             passed = False
             message = f"invalid SPEC.json: {exc}"
@@ -51,13 +53,20 @@ class FactoryEvaluator:
 
     @staticmethod
     def _runtime_contract(files: dict[str, str]) -> TestResult:
-        agents = [content for path, content in files.items() if path.endswith("/agent.py")]
-        if not agents:
+        agent_paths = [path for path in files if path.startswith("agents/") and path.endswith("/agent.py")]
+        if not agent_paths:
             return TestResult("runtime-contract", EvaluationStatus.FAILED, False, "agent.py missing")
-        content = agents[0]
-        required = ["class Agent", "def run", "from runtime.provider import generate", "return {"]
-        legacy = [item for item in ("configured_provider", "from factory.providers.factory import configured_provider") if item in content]
-        missing = [item for item in required if item not in content]
-        if legacy:
-            return TestResult("runtime-contract", EvaluationStatus.FAILED, False, "generated agent still depends on Factory runtime: " + ", ".join(legacy))
-        return TestResult("runtime-contract", EvaluationStatus.PASSED if not missing else EvaluationStatus.FAILED, not missing, "standalone runtime contract present" if not missing else "missing runtime elements: " + ", ".join(missing))
+        if "runtime/provider.py" not in files:
+            return TestResult("runtime-contract", EvaluationStatus.FAILED, False, "runtime/provider.py missing")
+        failures = []
+        for path in agent_paths:
+            content = files[path]
+            if "configured_provider" in content or "from factory.providers.factory" in content or "import factory" in content:
+                failures.append(f"{path}: imports Factory runtime")
+            if "from runtime.provider import generate" not in content:
+                failures.append(f"{path}: missing standalone provider import")
+            if "class Agent" not in content or "def run" not in content:
+                failures.append(f"{path}: missing Agent/run contract")
+        if failures:
+            return TestResult("runtime-contract", EvaluationStatus.FAILED, False, "; ".join(failures))
+        return TestResult("runtime-contract", EvaluationStatus.PASSED, True, "all generated agents use bundled standalone runtime")
