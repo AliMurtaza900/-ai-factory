@@ -1,0 +1,58 @@
+"""Runnable end-to-end orchestrator for the generated research company."""
+
+import argparse
+import json
+
+from agents.researcher.agent import Agent as ResearcherAgent
+from agents.verifier.agent import Agent as VerifierAgent
+from agents.market_analyst.agent import Agent as MarketAnalystAgent
+from agents.risk_analyst.agent import Agent as RiskAnalystAgent
+from agents.writer.agent import Agent as WriterAgent
+from agents.reviewer.agent import Agent as ReviewerAgent
+
+
+AGENTS = {
+    "researcher": ResearcherAgent,
+    "verifier": VerifierAgent,
+    "market_analyst": MarketAnalystAgent,
+    "risk_analyst": RiskAnalystAgent,
+    "writer": WriterAgent,
+    "reviewer": ReviewerAgent,
+}
+
+
+def run(business_question: str) -> dict:
+    if not business_question or not business_question.strip():
+        raise ValueError("business_question must not be empty")
+    outputs = {}
+
+    def execute(name, inputs):
+        result = AGENTS[name]().run(inputs)
+        if result.get("status") != "completed":
+            raise RuntimeError(f"Agent {name} did not complete: {result}")
+        outputs[name] = result
+        return result["response"]
+
+    research = execute("researcher", {"business_question": business_question})
+    verified = execute("verifier", {"research_evidence": research})
+    market = execute("market_analyst", {"verified_evidence": verified})
+    risks = execute("risk_analyst", {"verified_evidence": verified, "market_analysis": market})
+    report = execute("writer", {"verified_evidence": verified, "market_analysis": market, "risk_assessment": risks})
+    reviewed = execute("reviewer", {"executive_report": report, "risk_assessment": risks})
+
+    return {
+        "status": "completed",
+        "business_question": business_question,
+        "agents": list(outputs),
+        "outputs": outputs,
+        "final_report": reviewed,
+    }
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run the generated multi-agent research system")
+    parser.add_argument("question", help="Business/research question")
+    parser.add_argument("--json", action="store_true", help="Print JSON output")
+    args = parser.parse_args()
+    result = run(args.question)
+    print(json.dumps(result, indent=2) if args.json else result["final_report"])
