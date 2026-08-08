@@ -43,28 +43,33 @@ def _build_multi_agent_team(goal: str) -> AgentTeam:
 def _orchestrator_module(team: AgentTeam) -> str:
     members = [member.name for member in team.members]
     imports = "\n".join(f"from agents.{name}.agent import Agent as {name.title().replace('_', '')}Agent" for name in members)
-    classes = "\n".join(f"    \"{name}\": {name.title().replace('_', '')}Agent," for name in members)
+    classes = "\n".join(f"    {name!r}: {name.title().replace('_', '')}Agent," for name in members)
     return f'''"""Runnable end-to-end orchestrator for the generated team."""
 
+import argparse
 import json
-from pathlib import Path
 
 {imports}
 
 AGENTS = {{
 {classes}
 }}
+EXECUTION_ORDER = {members!r}
 
 
 def run(business_question: str) -> dict:
-    if not business_question or not business_question.strip():
-        raise ValueError("business_question must not be empty")
+    if not isinstance(business_question, str) or not business_question.strip():
+        raise ValueError("business_question must be a non-empty string")
     outputs = {{}}
 
     def execute(name, inputs):
         result = AGENTS[name]().run(inputs)
+        if not isinstance(result, dict):
+            raise TypeError(f"Agent {{name}} returned {{type(result).__name__}}, expected dict")
         if result.get("status") != "completed":
             raise RuntimeError(f"Agent {{name}} did not complete: {{result}}")
+        if not isinstance(result.get("response"), str) or not result["response"].strip():
+            raise RuntimeError(f"Agent {{name}} returned no response text")
         outputs[name] = result
         return result["response"]
 
@@ -85,13 +90,12 @@ def run(business_question: str) -> dict:
 
 
 if __name__ == "__main__":
-    import argparse
     parser = argparse.ArgumentParser(description="Run the generated multi-agent system")
     parser.add_argument("question", help="Business/research question")
     parser.add_argument("--json", action="store_true", help="Print JSON output")
     args = parser.parse_args()
     result = run(args.question)
-    print(json.dumps(result, indent=2) if args.json else result["final_report"])
+    print(json.dumps(result, indent=2) if args.json else result["final_report"]["response"])
 '''
 
 
@@ -99,7 +103,6 @@ def _materialize_team(team: AgentTeam, output_dir: Path) -> None:
     errors = team.validate()
     if errors:
         raise ValueError("Invalid generated team: " + "; ".join(errors))
-
     output_dir.mkdir(parents=True, exist_ok=True)
     builder = AgentProjectBuilder()
     for spec in team.agent_specs():
@@ -107,56 +110,32 @@ def _materialize_team(team: AgentTeam, output_dir: Path) -> None:
             path = output_dir / generated.path
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(generated.content, encoding="utf-8")
-
     (output_dir / "run.py").write_text(_orchestrator_module(team), encoding="utf-8")
-    (output_dir / "team.json").write_text(json.dumps({
-        "goal": team.goal,
-        "members": [member.__dict__ for member in team.members],
-        "plan": team.plan(),
-        "validation": "passed",
-        "entrypoint": "run.py",
-    }, indent=2) + "\n", encoding="utf-8")
+    (output_dir / "team.json").write_text(json.dumps({"goal": team.goal, "members": [member.__dict__ for member in team.members], "plan": team.plan(), "validation": "passed", "entrypoint": "run.py"}, indent=2) + "\n", encoding="utf-8")
 
 
 def run_factory(goal: str, *, output_root: str | Path = "generated", max_attempts: int = 2) -> ProductionResult:
-    if not goal or not goal.strip():
+    if not isinstance(goal, str) or not goal.strip():
         raise ValueError("A non-empty goal is required")
-
+    if not isinstance(max_attempts, int) or max_attempts < 1:
+        raise ValueError("max_attempts must be a positive integer")
     goal = goal.strip()
     store = PatternStore()
     reused = len(store.relevant(goal))
     result = AutonomousFactory().run(goal, max_attempts=max_attempts)
-
-    safe_name = result.design.spec.name.strip() or "generated-agent"
-    safe_name = re.sub(r"[^a-zA-Z0-9._-]+", "-", safe_name).strip("-") or "generated-agent"
+    safe_name = re.sub(r"[^a-zA-Z0-9._-]+", "-", result.design.spec.name.strip() or "generated-agent").strip("-") or "generated-agent"
     output_dir = Path(output_root) / safe_name
-
     if _is_complex_multi_agent_goal(goal):
         team = _build_multi_agent_team(goal)
         _materialize_team(team, output_dir)
-        (output_dir / "SPEC.json").write_text(json.dumps({
-            "type": "multi-agent-team",
-            "name": safe_name,
-            "purpose": goal,
-            "members": [member.__dict__ for member in team.members],
-            "entrypoint": "run.py",
-        }, indent=2) + "\n", encoding="utf-8")
+        (output_dir / "SPEC.json").write_text(json.dumps({"type": "multi-agent-team", "name": safe_name, "purpose": goal, "members": [member.__dict__ for member in team.members], "entrypoint": "run.py"}, indent=2) + "\n", encoding="utf-8")
     else:
         output_dir.mkdir(parents=True, exist_ok=True)
         for generated in result.design.files:
             path = output_dir / generated.path
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(generated.content, encoding="utf-8")
-        (output_dir / "SPEC.json").write_text(
-            json.dumps(result.design.spec.to_dict(), indent=2), encoding="utf-8"
-        )
-
+        (output_dir / "SPEC.json").write_text(json.dumps(result.design.spec.to_dict(), indent=2) + "\n", encoding="utf-8")
     if result.passed:
-        store.record(SuccessfulPattern(
-            goal=goal,
-            agent_name=safe_name,
-            capabilities=result.design.spec.capabilities,
-            acceptance_criteria=result.design.spec.acceptance_criteria,
-        ))
-
+        store.record(SuccessfulPattern(goal=goal, agent_name=safe_name, capabilities=result.design.spec.capabilities, acceptance_criteria=result.design.spec.acceptance_criteria))
     return ProductionResult(goal, result.passed, result.attempts, output_dir, reused)
