@@ -1,0 +1,22 @@
+{
+  "acceptance_criteria": [
+    "Produces the required executive_report"
+  ],
+  "capabilities": [],
+  "constraints": [],
+  "inputs": [
+    "verified_evidence",
+    "market_analysis",
+    "risk_assessment"
+  ],
+  "metadata": {},
+  "model": null,
+  "model_provider": null,
+  "name": "writer",
+  "outputs": [
+    "executive_report"
+  ],
+  "purpose": "Produce a clear executive report from the team's evidence and analysis.",
+  "role": "executive writer",
+  "tools": []
+}

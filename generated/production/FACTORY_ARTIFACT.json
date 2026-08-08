@@ -1,0 +1,32 @@
+{
+  "artifact_type": "generated_ai_agent",
+  "goal": "Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery.",
+  "files": [
+    "create-a-multi-agent-ai-research-company-that-re/SPEC.json",
+    "create-a-multi-agent-ai-research-company-that-re/agents/market_analyst/README.md",
+    "create-a-multi-agent-ai-research-company-that-re/agents/market_analyst/SPEC.json",
+    "create-a-multi-agent-ai-research-company-that-re/agents/market_analyst/__init__.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/market_analyst/agent.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/researcher/README.md",
+    "create-a-multi-agent-ai-research-company-that-re/agents/researcher/SPEC.json",
+    "create-a-multi-agent-ai-research-company-that-re/agents/researcher/__init__.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/researcher/agent.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/reviewer/README.md",
+    "create-a-multi-agent-ai-research-company-that-re/agents/reviewer/SPEC.json",
+    "create-a-multi-agent-ai-research-company-that-re/agents/reviewer/__init__.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/reviewer/agent.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/risk_analyst/README.md",
+    "create-a-multi-agent-ai-research-company-that-re/agents/risk_analyst/SPEC.json",
+    "create-a-multi-agent-ai-research-company-that-re/agents/risk_analyst/__init__.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/risk_analyst/agent.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/verifier/README.md",
+    "create-a-multi-agent-ai-research-company-that-re/agents/verifier/SPEC.json",
+    "create-a-multi-agent-ai-research-company-that-re/agents/verifier/__init__.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/verifier/agent.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/writer/README.md",
+    "create-a-multi-agent-ai-research-company-that-re/agents/writer/SPEC.json",
+    "create-a-multi-agent-ai-research-company-that-re/agents/writer/__init__.py",
+    "create-a-multi-agent-ai-research-company-that-re/agents/writer/agent.py",
+    "create-a-multi-agent-ai-research-company-that-re/team.json"
+  ]
+}

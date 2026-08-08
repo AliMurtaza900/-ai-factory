@@ -1,0 +1,20 @@
+{
+  "acceptance_criteria": [
+    "Produces the required verified_evidence"
+  ],
+  "capabilities": [],
+  "constraints": [],
+  "inputs": [
+    "research_evidence"
+  ],
+  "metadata": {},
+  "model": null,
+  "model_provider": null,
+  "name": "verifier",
+  "outputs": [
+    "verified_evidence"
+  ],
+  "purpose": "Verify, compare, and qualify the research evidence.",
+  "role": "verification",
+  "tools": []
+}

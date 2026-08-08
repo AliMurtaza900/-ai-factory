@@ -1,0 +1,20 @@
+{
+  "acceptance_criteria": [
+    "Produces the required market_analysis"
+  ],
+  "capabilities": [],
+  "constraints": [],
+  "inputs": [
+    "verified_evidence"
+  ],
+  "metadata": {},
+  "model": null,
+  "model_provider": null,
+  "name": "market_analyst",
+  "outputs": [
+    "market_analysis"
+  ],
+  "purpose": "Perform financial and market analysis from verified evidence.",
+  "role": "financial and market analysis",
+  "tools": []
+}

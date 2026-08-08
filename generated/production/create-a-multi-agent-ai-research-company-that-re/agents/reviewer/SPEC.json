@@ -1,0 +1,21 @@
+{
+  "acceptance_criteria": [
+    "Produces the required reviewed_report"
+  ],
+  "capabilities": [],
+  "constraints": [],
+  "inputs": [
+    "executive_report",
+    "risk_assessment"
+  ],
+  "metadata": {},
+  "model": null,
+  "model_provider": null,
+  "name": "reviewer",
+  "outputs": [
+    "reviewed_report"
+  ],
+  "purpose": "Validate the final report against evidence, analysis, risks, and acceptance criteria.",
+  "role": "final reviewer",
+  "tools": []
+}

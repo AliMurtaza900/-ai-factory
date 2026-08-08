@@ -1,0 +1,77 @@
+{
+  "type": "multi-agent-team",
+  "name": "create-a-multi-agent-ai-research-company-that-re",
+  "purpose": "Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery.",
+  "members": [
+    {
+      "name": "researcher",
+      "role": "research",
+      "purpose": "Research the business question using multiple relevant sources.",
+      "inputs": [
+        "business_question"
+      ],
+      "outputs": [
+        "research_evidence"
+      ]
+    },
+    {
+      "name": "verifier",
+      "role": "verification",
+      "purpose": "Verify, compare, and qualify the research evidence.",
+      "inputs": [
+        "research_evidence"
+      ],
+      "outputs": [
+        "verified_evidence"
+      ]
+    },
+    {
+      "name": "market_analyst",
+      "role": "financial and market analysis",
+      "purpose": "Perform financial and market analysis from verified evidence.",
+      "inputs": [
+        "verified_evidence"
+      ],
+      "outputs": [
+        "market_analysis"
+      ]
+    },
+    {
+      "name": "risk_analyst",
+      "role": "risk analysis",
+      "purpose": "Identify material risks, uncertainties, assumptions, and missing evidence.",
+      "inputs": [
+        "verified_evidence",
+        "market_analysis"
+      ],
+      "outputs": [
+        "risk_assessment"
+      ]
+    },
+    {
+      "name": "writer",
+      "role": "executive writer",
+      "purpose": "Produce a clear executive report from the team's evidence and analysis.",
+      "inputs": [
+        "verified_evidence",
+        "market_analysis",
+        "risk_assessment"
+      ],
+      "outputs": [
+        "executive_report"
+      ]
+    },
+    {
+      "name": "reviewer",
+      "role": "final reviewer",
+      "purpose": "Validate the final report against evidence, analysis, risks, and acceptance criteria.",
+      "inputs": [
+        "executive_report",
+        "risk_assessment"
+      ],
+      "outputs": [
+        "reviewed_report"
+      ]
+    }
+  ]
+}

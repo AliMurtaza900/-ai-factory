@@ -1,0 +1,20 @@
+{
+  "acceptance_criteria": [
+    "Produces the required research_evidence"
+  ],
+  "capabilities": [],
+  "constraints": [],
+  "inputs": [
+    "business_question"
+  ],
+  "metadata": {},
+  "model": null,
+  "model_provider": null,
+  "name": "researcher",
+  "outputs": [
+    "research_evidence"
+  ],
+  "purpose": "Research the business question using multiple relevant sources.",
+  "role": "research",
+  "tools": []
+}

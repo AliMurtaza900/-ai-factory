@@ -1,0 +1,21 @@
+{
+  "acceptance_criteria": [
+    "Produces the required risk_assessment"
+  ],
+  "capabilities": [],
+  "constraints": [],
+  "inputs": [
+    "verified_evidence",
+    "market_analysis"
+  ],
+  "metadata": {},
+  "model": null,
+  "model_provider": null,
+  "name": "risk_analyst",
+  "outputs": [
+    "risk_assessment"
+  ],
+  "purpose": "Identify material risks, uncertainties, assumptions, and missing evidence.",
+  "role": "risk analysis",
+  "tools": []
+}
