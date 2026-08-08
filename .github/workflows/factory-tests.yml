@@ -116,6 +116,7 @@ jobs:
           find generated/production -type f -print | grep -E '/SPEC\.json$'
           find generated/production -type f -print | grep -E '/agents/.*/agent\.py$'
           find generated/production -type f -print | grep -E '/runtime/provider\.py$'
+          test -f generated/production/requirements.txt
           if grep -R "from factory\." generated/production; then
             echo "ERROR: generated system still imports Factory runtime."
             exit 1
@@ -198,14 +199,11 @@ jobs:
             git commit -m "Publish standalone generated AI system"
             git push origin HEAD:main
           fi
-      - name: Package generated system
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: tar -czf ai-factory-generated-agent.tar.gz -C generated/production .
       - name: Upload generated system artifact
         if: ${{ github.event_name == 'workflow_dispatch' && always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ai-factory-generated-agent-${{ github.run_number }}
-          path: ai-factory-generated-agent.tar.gz
+          path: generated/production
           if-no-files-found: error
           retention-days: 14
