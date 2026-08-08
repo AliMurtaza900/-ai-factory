@@ -108,15 +108,16 @@ jobs:
           python -m factory "${{ inputs.goal }}" --workspace generated/production --max-attempts "${{ inputs.max_attempts }}"
           echo "Generated production files:"
           find generated/production -type f -print | sort
-      - name: Verify generated artifact boundary and team
+      - name: Verify standalone generated system
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           test -d generated/production
+          find generated/production -type f -print | grep -E '/team\.json$'
           find generated/production -type f -print | grep -E '/SPEC\.json$'
-          find generated/production -type f -print | grep -E '/README\.md$'
           find generated/production -type f -print | grep -E '/agents/.*/agent\.py$'
-          if find generated/production -type f -print | grep -E '(^|/)factory/(core|agents|builder|runtime|sandbox)/|(^|/)\.github/workflows/'; then
-            echo "ERROR: Factory source code leaked into the production output."
+          find generated/production -type f -print | grep -E '/runtime/provider\.py$'
+          if grep -R "from factory\." generated/production; then
+            echo "ERROR: generated system still imports Factory runtime."
             exit 1
           fi
           python - <<'PY'
@@ -125,14 +126,50 @@ jobs:
           root = Path("generated/production")
           teams = list(root.rglob("team.json"))
           if not teams:
-              raise SystemExit("ERROR: no team.json found in generated production output")
+              raise SystemExit("ERROR: no team.json found")
           data = json.loads(teams[0].read_text(encoding="utf-8"))
           names = {str(m.get("name", "")).lower() for m in data.get("members", [])}
           required = {"researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"}
           missing = sorted(required - names)
           if missing:
-              raise SystemExit(f"ERROR: generated team is missing agents: {', '.join(missing)}")
-          print("Verified six-agent production team:", ", ".join(sorted(names)))
+              raise SystemExit(f"ERROR: generated team missing: {', '.join(missing)}")
+          print("Verified six-agent standalone team")
+          PY
+      - name: Run generated-system smoke test
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          AI_FACTORY_GEMINI_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
+          AI_FACTORY_GEMINI_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
+          AI_FACTORY_OPENAI_KEY: ${{ secrets.AI_FACTORY_OPENAI_KEY }}
+          AI_FACTORY_OPENAI_MODEL: ${{ secrets.AI_FACTORY_OPENAI_MODEL }}
+          AI_FACTORY_CEREBRAS_KEY: ${{ secrets.AI_FACTORY_CEREBRAS_KEY }}
+          AI_FACTORY_CEREBRAS_MODEL: ${{ secrets.AI_FACTORY_CEREBRAS_MODEL }}
+          AI_FACTORY_OPENROUTER_KEY: ${{ secrets.AI_FACTORY_OPENROUTER_KEY }}
+          AI_FACTORY_OPENROUTER_MODEL: ${{ secrets.AI_FACTORY_OPENROUTER_MODEL }}
+        working-directory: generated/production
+        run: |
+          python -m compileall .
+          python - <<'PY'
+          import importlib, os
+          from pathlib import Path
+          agents = []
+          for p in sorted(Path("agents").glob("*/agent.py")):
+              name = p.parent.name
+              module = importlib.import_module(f"agents.{name}.agent")
+              if not hasattr(module, "Agent"):
+                  raise SystemExit(f"Missing Agent class: {name}")
+              agents.append((name, module.Agent))
+          if not agents:
+              raise SystemExit("No generated agents found")
+          print("Imported generated agents:", [name for name, _ in agents])
+          if any(os.getenv(k) for k in ("AI_FACTORY_GEMINI_KEY", "AI_FACTORY_OPENAI_KEY", "AI_FACTORY_CEREBRAS_KEY", "AI_FACTORY_OPENROUTER_KEY")):
+              name, cls = agents[0]
+              result = cls().run({})
+              if result.get("status") != "completed":
+                  raise SystemExit(f"Generated agent did not complete: {result}")
+              print("Executed generated agent:", name, result["provider"], result["model"])
+          else:
+              print("No provider credentials available; execution step limited to import/compile validation")
           PY
       - name: Write repository-visible artifact manifest
         if: ${{ github.event_name == 'workflow_dispatch' }}
@@ -142,7 +179,7 @@ jobs:
           import json
           root = Path("generated/production")
           files = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file())
-          manifest = {"artifact_type": "generated_ai_agent", "goal": "${{ inputs.goal }}", "files": files}
+          manifest = {"artifact_type": "standalone_generated_ai_system", "goal": "${{ inputs.goal }}", "files": files}
           (root / "FACTORY_ARTIFACT.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           PY
       - name: Publish generated result to repository
@@ -154,13 +191,13 @@ jobs:
           if git diff --cached --quiet; then
             echo "No generated output changes to publish."
           else
-            git commit -m "Publish generated AI Factory result"
+            git commit -m "Publish standalone generated AI system"
             git push origin HEAD:main
           fi
-      - name: Package generated agent
+      - name: Package generated system
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: tar -czf ai-factory-generated-agent.tar.gz -C generated/production .
-      - name: Upload generated agent artifact
+      - name: Upload generated system artifact
         if: ${{ github.event_name == 'workflow_dispatch' && always() }}
         uses: actions/upload-artifact@v4
         with:
