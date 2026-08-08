@@ -150,7 +150,7 @@ jobs:
         run: |
           python -m compileall .
           python - <<'PY'
-          import importlib, os
+          import importlib, json, os
           from pathlib import Path
           agents = []
           for p in sorted(Path("agents").glob("*/agent.py")):
@@ -162,9 +162,13 @@ jobs:
           if not agents:
               raise SystemExit("No generated agents found")
           print("Imported generated agents:", [name for name, _ in agents])
-          if any(os.getenv(k) for k in ("AI_FACTORY_GEMINI_KEY", "AI_FACTORY_OPENAI_KEY", "AI_FACTORY_CEREBRAS_KEY", "AI_FACTORY_OPENROUTER_KEY")):
+          credentials = ("AI_FACTORY_GEMINI_KEY", "AI_FACTORY_OPENAI_KEY", "AI_FACTORY_CEREBRAS_KEY", "AI_FACTORY_OPENROUTER_KEY")
+          if any(os.getenv(k) for k in credentials):
+              spec_files = sorted(Path("agents").glob("*/SPEC.json"))
+              spec = json.loads(spec_files[0].read_text(encoding="utf-8")) if spec_files else {"inputs": []}
+              inputs = {str(key): "smoke-test" for key in spec.get("inputs", [])}
               name, cls = agents[0]
-              result = cls().run({})
+              result = cls().run(inputs)
               if result.get("status") != "completed":
                   raise SystemExit(f"Generated agent did not complete: {result}")
               print("Executed generated agent:", name, result["provider"], result["model"])
@@ -183,7 +187,7 @@ jobs:
           (root / "FACTORY_ARTIFACT.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           PY
       - name: Publish generated result to repository
-        if: ${{ github.event_name == 'workflow_dispatch' && success() }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && success() }}
         run: |
           git config user.name "AI Factory"
           git config user.email "ai-factory@users.noreply.github.com"
