@@ -19,6 +19,7 @@ AGENTS = {
     "writer": WriterAgent,
     "reviewer": ReviewerAgent,
 }
+EXECUTION_ORDER = ["researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"]
 
 
 def run(business_question: str) -> dict:
@@ -43,9 +44,9 @@ def run(business_question: str) -> dict:
     return {
         "status": "completed",
         "business_question": business_question,
-        "agents": list(outputs),
+        "agents": EXECUTION_ORDER.copy(),
         "outputs": outputs,
-        "final_report": reviewed,
+        "final_report": outputs["reviewer"],
     }
 
 
@@ -55,4 +56,4 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="Print JSON output")
     args = parser.parse_args()
     result = run(args.question)
-    print(json.dumps(result, indent=2) if args.json else result["final_report"])
+    print(json.dumps(result, indent=2) if args.json else result["final_report"]["response"])
