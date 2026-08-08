@@ -18,7 +18,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   AI_FACTORY_PROVIDER: gemini
@@ -108,7 +108,7 @@ jobs:
           python -m factory "${{ inputs.goal }}" --workspace generated/production --max-attempts "${{ inputs.max_attempts }}"
           echo "Generated production files:"
           find generated/production -type f -print | sort
-      - name: Verify generated artifact boundary
+      - name: Verify generated artifact boundary and team
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           test -d generated/production
@@ -116,10 +116,25 @@ jobs:
           find generated/production -type f -print | grep -E '/README\.md$'
           find generated/production -type f -print | grep -E '/agents/.*/agent\.py$'
           if find generated/production -type f -print | grep -E '(^|/)factory/(core|agents|builder|runtime|sandbox)/|(^|/)\.github/workflows/'; then
-            echo "ERROR: Factory source code leaked into the production artifact."
+            echo "ERROR: Factory source code leaked into the production output."
             exit 1
           fi
-      - name: Write artifact manifest
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          root = Path("generated/production")
+          teams = list(root.rglob("team.json"))
+          if not teams:
+              raise SystemExit("ERROR: no team.json found in generated production output")
+          data = json.loads(teams[0].read_text(encoding="utf-8"))
+          names = {str(m.get("name", "")).lower() for m in data.get("members", [])}
+          required = {"researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"}
+          missing = sorted(required - names)
+          if missing:
+              raise SystemExit(f"ERROR: generated team is missing agents: {', '.join(missing)}")
+          print("Verified six-agent production team:", ", ".join(sorted(names)))
+          PY
+      - name: Write repository-visible artifact manifest
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           python - <<'PY'
@@ -127,9 +142,21 @@ jobs:
           import json
           root = Path("generated/production")
           files = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file())
-          manifest = {"artifact_type": "generated_ai_agent", "files": files}
+          manifest = {"artifact_type": "generated_ai_agent", "goal": "${{ inputs.goal }}", "files": files}
           (root / "FACTORY_ARTIFACT.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           PY
+      - name: Publish generated result to repository
+        if: ${{ github.event_name == 'workflow_dispatch' && success() }}
+        run: |
+          git config user.name "AI Factory"
+          git config user.email "ai-factory@users.noreply.github.com"
+          git add generated/production
+          if git diff --cached --quiet; then
+            echo "No generated output changes to publish."
+          else
+            git commit -m "Publish generated AI Factory result"
+            git push origin HEAD:main
+          fi
       - name: Package generated agent
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: tar -czf ai-factory-generated-agent.tar.gz -C generated/production .
