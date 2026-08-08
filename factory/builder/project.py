@@ -44,6 +44,8 @@ class AgentProjectBuilder:
 
 import json
 import os
+import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
@@ -55,8 +57,12 @@ class Response:
     text: str
 
 
+_RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
+_MAX_RETRIES = 3
+
+
 def generate(prompt: str) -> Response:
-    """Generate text using the first configured provider, without importing Factory."""
+    """Generate text using configured providers, retrying transient failures."""
     candidates = [
         ("gemini", os.getenv("AI_FACTORY_GEMINI_KEY") or os.getenv("AI_FACTORY_API_KEY"), os.getenv("AI_FACTORY_GEMINI_MODEL") or os.getenv("AI_FACTORY_MODEL")),
         ("openai", os.getenv("AI_FACTORY_OPENAI_KEY"), os.getenv("AI_FACTORY_OPENAI_MODEL")),
@@ -88,9 +94,31 @@ def generate(prompt: str) -> Response:
 
 
 def _post(url: str, body: dict, headers: dict) -> dict:
-    request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", **headers}, method="POST")
-    with urllib.request.urlopen(request, timeout=45) as response:
-        return json.loads(response.read().decode())
+    request_body = json.dumps(body).encode()
+    last_error = None
+    for attempt in range(_MAX_RETRIES + 1):
+        request = urllib.request.Request(url, data=request_body, headers={"Content-Type": "application/json", **headers}, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=45) as response:
+                return json.loads(response.read().decode())
+        except urllib.error.HTTPError as exc:
+            last_error = exc
+            if exc.code not in _RETRYABLE_STATUS or attempt >= _MAX_RETRIES:
+                raise
+            retry_after = exc.headers.get("Retry-After")
+            try:
+                delay = min(float(retry_after), 30.0) if retry_after else 2 ** attempt
+            except ValueError:
+                delay = 2 ** attempt
+            time.sleep(delay)
+        except (urllib.error.URLError, TimeoutError) as exc:
+            last_error = exc
+            if attempt >= _MAX_RETRIES:
+                raise
+            time.sleep(2 ** attempt)
+    if last_error:
+        raise last_error
+    raise RuntimeError("Provider request failed without an error")
 '''
 
     @staticmethod
