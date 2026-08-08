@@ -14,7 +14,7 @@ on:
       max_attempts:
         description: "Maximum bounded Factory attempts"
         required: false
-        default: "2"
+        default: "5"
         type: string
 
 permissions:
@@ -97,26 +97,47 @@ jobs:
             exit 0
           fi
           python -m factory.providers.provider_check
+      - name: Prepare clean production output directory
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: rm -rf generated/production
       - name: Run requested Factory goal
         if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python -m factory "${{ inputs.goal }}" --max-attempts "${{ inputs.max_attempts }}"
-          echo "Generated files:"
-          find generated -maxdepth 6 -type f -print | sort
-      - name: Package generated agent
+          python -m factory "${{ inputs.goal }}" --workspace generated/production --max-attempts "${{ inputs.max_attempts }}"
+          echo "Generated production files:"
+          find generated/production -type f -print | sort
+      - name: Verify generated artifact boundary
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          test -d generated
-          tar -czf ai-factory-generated-agent.tar.gz generated
+          test -d generated/production
+          find generated/production -type f -print | grep -E '/SPEC\.json$'
+          find generated/production -type f -print | grep -E '/README\.md$'
+          find generated/production -type f -print | grep -E '/agents/.*/agent\.py$'
+          if find generated/production -type f -print | grep -E '(^|/)factory/(core|agents|builder|runtime|sandbox)/|(^|/)\.github/workflows/'; then
+            echo "ERROR: Factory source code leaked into the production artifact."
+            exit 1
+          fi
+      - name: Write artifact manifest
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          root = Path("generated/production")
+          files = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file())
+          manifest = {"artifact_type": "generated_ai_agent", "files": files}
+          (root / "FACTORY_ARTIFACT.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          PY
+      - name: Package generated agent
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: tar -czf ai-factory-generated-agent.tar.gz -C generated/production .
       - name: Upload generated agent artifact
         if: ${{ github.event_name == 'workflow_dispatch' && always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ai-factory-generated-agent-${{ github.run_number }}
-          path: |
-            ai-factory-generated-agent.tar.gz
-            generated/**
+          path: ai-factory-generated-agent.tar.gz
           if-no-files-found: error
           retention-days: 14
