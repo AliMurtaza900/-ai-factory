@@ -9,7 +9,7 @@ on:
       goal:
         description: "Goal for the AI Factory to build"
         required: true
-        default: "Create an AI research assistant that researches a topic, compares information, identifies uncertainty, and produces a structured report."
+        default: "Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery."
         type: string
       max_attempts:
         description: "Maximum bounded Factory attempts"
