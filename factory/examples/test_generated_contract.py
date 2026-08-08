@@ -1,9 +1,13 @@
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from factory.run import _build_multi_agent_team, _materialize_team
+
+
+EXPECTED_ORDER = ["researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"]
 
 
 class GeneratedContractTests(unittest.TestCase):
@@ -17,24 +21,30 @@ class GeneratedContractTests(unittest.TestCase):
             self.assertTrue((root / "team.json").is_file())
             self.assertTrue((root / "runtime/provider.py").is_file())
             self.assertTrue((root / "requirements.txt").is_file())
-            old = os.environ.get("AI_FACTORY_MOCK")
+            old_mock = os.environ.get("AI_FACTORY_MOCK")
+            old_run = sys.modules.pop("run", None)
             os.environ["AI_FACTORY_MOCK"] = "1"
+            sys.path.insert(0, str(root))
             try:
-                import sys
-                sys.path.insert(0, str(root))
                 import run as generated_run
                 result = generated_run.run("Should a company expand into a new market?")
                 self.assertEqual(result["status"], "completed")
-                self.assertEqual(result["agents"], ["researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"])
+                self.assertEqual(result["agents"], EXPECTED_ORDER)
+                self.assertEqual(list(result["outputs"]), EXPECTED_ORDER)
                 self.assertIsInstance(result["final_report"], dict)
+                self.assertEqual(result["final_report"], result["outputs"]["reviewer"])
+                self.assertEqual(result["final_report"]["agent"], "reviewer")
                 self.assertTrue(result["final_report"]["response"])
             finally:
-                if old is None:
-                    os.environ.pop("AI_FACTORY_MOCK", None)
-                else:
-                    os.environ["AI_FACTORY_MOCK"] = old
+                sys.modules.pop("run", None)
+                if old_run is not None:
+                    sys.modules["run"] = old_run
                 if str(root) in sys.path:
                     sys.path.remove(str(root))
+                if old_mock is None:
+                    os.environ.pop("AI_FACTORY_MOCK", None)
+                else:
+                    os.environ["AI_FACTORY_MOCK"] = old_mock
 
     def test_team_rejects_broken_handoff(self):
         team = _build_multi_agent_team("Create a multi-agent AI research company")
