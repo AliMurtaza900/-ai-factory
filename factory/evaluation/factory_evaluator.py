@@ -13,12 +13,7 @@ class FactoryEvaluator:
 
     def evaluate(self, spec: AgentSpec, files: list[GeneratedFile]) -> EvaluationReport:
         by_path = {file.path: file.content for file in files}
-        results = [
-            self._required_files(by_path),
-            self._python_syntax(by_path),
-            self._spec_matches(spec, by_path),
-            self._runtime_contract(by_path),
-        ]
+        results = [self._required_files(by_path), self._python_syntax(by_path), self._spec_matches(spec, by_path), self._runtime_contract(by_path)]
         return EvaluationReport(agent_name=spec.name, results=results)
 
     @staticmethod
@@ -26,12 +21,7 @@ class FactoryEvaluator:
         required = {"__init__.py", "agent.py", "SPEC.json", "README.md"}
         found = {path.rsplit("/", 1)[-1] for path in files}
         missing = sorted(required - found)
-        return TestResult(
-            test_name="required-artifacts",
-            status=EvaluationStatus.FAILED if missing else EvaluationStatus.PASSED,
-            passed=not missing,
-            message="missing files: " + ", ".join(missing) if missing else "all required artifacts present",
-        )
+        return TestResult("required-artifacts", EvaluationStatus.FAILED if missing else EvaluationStatus.PASSED, not missing, "missing files: " + ", ".join(missing) if missing else "all required artifacts present")
 
     @staticmethod
     def _python_syntax(files: dict[str, str]) -> TestResult:
@@ -42,12 +32,7 @@ class FactoryEvaluator:
                     ast.parse(content, filename=path)
                 except SyntaxError as exc:
                     errors.append(f"{path}: {exc}")
-        return TestResult(
-            test_name="python-syntax",
-            status=EvaluationStatus.FAILED if errors else EvaluationStatus.PASSED,
-            passed=not errors,
-            message="; ".join(errors) if errors else "generated Python parses successfully",
-        )
+        return TestResult("python-syntax", EvaluationStatus.FAILED if errors else EvaluationStatus.PASSED, not errors, "; ".join(errors) if errors else "generated Python parses successfully")
 
     @staticmethod
     def _spec_matches(spec: AgentSpec, files: dict[str, str]) -> TestResult:
@@ -70,11 +55,9 @@ class FactoryEvaluator:
         if not agents:
             return TestResult("runtime-contract", EvaluationStatus.FAILED, False, "agent.py missing")
         content = agents[0]
-        required = ["class Agent", "def run", "configured_provider", "return {"]
+        required = ["class Agent", "def run", "from runtime.provider import generate", "return {"]
+        legacy = [item for item in ("configured_provider", "from factory.providers.factory import configured_provider") if item in content]
         missing = [item for item in required if item not in content]
-        return TestResult(
-            "runtime-contract",
-            EvaluationStatus.PASSED if not missing else EvaluationStatus.FAILED,
-            not missing,
-            "runtime contract present" if not missing else "missing runtime elements: " + ", ".join(missing),
-        )
+        if legacy:
+            return TestResult("runtime-contract", EvaluationStatus.FAILED, False, "generated agent still depends on Factory runtime: " + ", ".join(legacy))
+        return TestResult("runtime-contract", EvaluationStatus.PASSED if not missing else EvaluationStatus.FAILED, not missing, "standalone runtime contract present" if not missing else "missing runtime elements: " + ", ".join(missing))
