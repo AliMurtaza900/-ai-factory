@@ -15,6 +15,11 @@ on:
         required: false
         default: "5"
         type: string
+      run_real_provider_smoke:
+        description: "Call a live AI provider during generated-system smoke test (may fail on provider quotas)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -87,7 +92,6 @@ jobs:
         run: |
           set -e
           root="generated/production"
-          # Factory may place the generated system inside a goal-named directory.
           if [ ! -f "$root/team.json" ] && [ ! -f "$root/runtime/provider.py" ]; then
             candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
             count=$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)
@@ -119,6 +123,8 @@ jobs:
           PY
       - name: Run generated-system smoke test
         if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          RUN_REAL_PROVIDER_SMOKE: ${{ inputs.run_real_provider_smoke }}
         run: |
           set -e
           root="generated/production"
@@ -142,8 +148,7 @@ jobs:
           if not agents:
               raise SystemExit("No generated agents found")
           print("Imported generated agents:", [name for name, _ in agents])
-          credentials = ("AI_FACTORY_GEMINI_KEY", "AI_FACTORY_OPENAI_KEY", "AI_FACTORY_CEREBRAS_KEY", "AI_FACTORY_OPENROUTER_KEY")
-          if any(os.getenv(k) for k in credentials):
+          if os.getenv("RUN_REAL_PROVIDER_SMOKE", "false").lower() == "true":
               spec_files = sorted(Path("agents").glob("*/SPEC.json"))
               spec = json.loads(spec_files[0].read_text(encoding="utf-8")) if spec_files else {"inputs": []}
               inputs = {str(key): "smoke-test" for key in spec.get("inputs", [])}
@@ -153,7 +158,7 @@ jobs:
                   raise SystemExit(f"Generated agent did not complete: {result}")
               print("Executed generated agent:", name, result["provider"], result["model"])
           else:
-              print("No provider credentials available; execution step limited to import/compile validation")
+              print("Live provider smoke disabled; standalone validation limited to compile/import checks")
           PY
       - name: Write repository-visible artifact manifest
         if: ${{ github.event_name == 'workflow_dispatch' }}
