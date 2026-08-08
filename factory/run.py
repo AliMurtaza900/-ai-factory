@@ -40,6 +40,61 @@ def _build_multi_agent_team(goal: str) -> AgentTeam:
     )
 
 
+def _orchestrator_module(team: AgentTeam) -> str:
+    members = [member.name for member in team.members]
+    imports = "\n".join(f"from agents.{name}.agent import Agent as {name.title().replace('_', '')}Agent" for name in members)
+    classes = "\n".join(f"    \"{name}\": {name.title().replace('_', '')}Agent," for name in members)
+    return f'''"""Runnable end-to-end orchestrator for the generated team."""
+
+import json
+from pathlib import Path
+
+{imports}
+
+AGENTS = {{
+{classes}
+}}
+
+
+def run(business_question: str) -> dict:
+    if not business_question or not business_question.strip():
+        raise ValueError("business_question must not be empty")
+    outputs = {{}}
+
+    def execute(name, inputs):
+        result = AGENTS[name]().run(inputs)
+        if result.get("status") != "completed":
+            raise RuntimeError(f"Agent {{name}} did not complete: {{result}}")
+        outputs[name] = result
+        return result["response"]
+
+    research = execute("researcher", {{"business_question": business_question}})
+    verified = execute("verifier", {{"research_evidence": research}})
+    market = execute("market_analyst", {{"verified_evidence": verified}})
+    risks = execute("risk_analyst", {{"verified_evidence": verified, "market_analysis": market}})
+    report = execute("writer", {{"verified_evidence": verified, "market_analysis": market, "risk_assessment": risks}})
+    reviewed = execute("reviewer", {{"executive_report": report, "risk_assessment": risks}})
+
+    return {{
+        "status": "completed",
+        "business_question": business_question,
+        "agents": list(outputs),
+        "outputs": outputs,
+        "final_report": reviewed,
+    }}
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Run the generated multi-agent system")
+    parser.add_argument("question", help="Business/research question")
+    parser.add_argument("--json", action="store_true", help="Print JSON output")
+    args = parser.parse_args()
+    result = run(args.question)
+    print(json.dumps(result, indent=2) if args.json else result["final_report"])
+'''
+
+
 def _materialize_team(team: AgentTeam, output_dir: Path) -> None:
     errors = team.validate()
     if errors:
@@ -53,11 +108,13 @@ def _materialize_team(team: AgentTeam, output_dir: Path) -> None:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(generated.content, encoding="utf-8")
 
+    (output_dir / "run.py").write_text(_orchestrator_module(team), encoding="utf-8")
     (output_dir / "team.json").write_text(json.dumps({
         "goal": team.goal,
         "members": [member.__dict__ for member in team.members],
         "plan": team.plan(),
         "validation": "passed",
+        "entrypoint": "run.py",
     }, indent=2) + "\n", encoding="utf-8")
 
 
@@ -82,6 +139,7 @@ def run_factory(goal: str, *, output_root: str | Path = "generated", max_attempt
             "name": safe_name,
             "purpose": goal,
             "members": [member.__dict__ for member in team.members],
+            "entrypoint": "run.py",
         }, indent=2) + "\n", encoding="utf-8")
     else:
         output_dir.mkdir(parents=True, exist_ok=True)
