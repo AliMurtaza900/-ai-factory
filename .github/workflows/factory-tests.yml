@@ -198,7 +198,14 @@ jobs:
           for pyc in root.rglob("*.pyc"):
               pyc.unlink()
           files = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file())
-          manifest = {"artifact_type": "standalone_generated_ai_system", "goal": "${{ inputs.goal }}" or "default production goal", "files": files, "entrypoint": "run.py", "end_to_end_test": "passed"}
+          specs = sorted(root.rglob("SPEC.json"))
+          if len(specs) != 1:
+              raise SystemExit(f"Expected exactly one generated SPEC.json, found {len(specs)}")
+          spec = json.loads(specs[0].read_text(encoding="utf-8"))
+          goal = str(spec.get("purpose", "")).strip()
+          if not goal:
+              raise SystemExit("Generated SPEC.json has no non-empty purpose; refusing to publish an ambiguous artifact goal")
+          manifest = {"artifact_type": "standalone_generated_ai_system", "goal": goal, "files": files, "entrypoint": "run.py", "end_to_end_test": "passed"}
           (root / "FACTORY_ARTIFACT.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           PY
       - name: Publish generated result to repository
