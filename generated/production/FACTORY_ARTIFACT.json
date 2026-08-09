@@ -1,6 +1,6 @@
 {
   "artifact_type": "standalone_generated_ai_system",
-  "goal": "default production goal",
+  "goal": "Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery.",
   "files": [
     "create-a-multi-agent-ai-research-company-that-re/SPEC.json",
     "create-a-multi-agent-ai-research-company-that-re/agents/market_analyst/README.md",
