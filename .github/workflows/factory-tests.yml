@@ -9,16 +9,15 @@ on:
   workflow_dispatch:
     inputs:
       goal:
-        description: "Goal for the AI Factory to build"
+        description: Goal for the AI Factory to build
         required: true
-        default: "Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery."
+        default: Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery.
         type: string
       max_attempts:
         required: false
-        default: "5"
+        default: '5'
         type: string
       run_real_provider_smoke:
-        description: "Call a live AI provider during generated-system smoke test (optional; never required for artifact validity)"
         required: false
         default: false
         type: boolean
@@ -41,7 +40,7 @@ env:
   AI_FACTORY_CEREBRAS_MODEL: ${{ secrets.AI_FACTORY_CEREBRAS_MODEL }}
   AI_FACTORY_OPENROUTER_KEY: ${{ secrets.AI_FACTORY_OPENROUTER_KEY }}
   AI_FACTORY_OPENROUTER_MODEL: ${{ secrets.AI_FACTORY_OPENROUTER_MODEL }}
-  AI_FACTORY_ENABLE_LLM_ARCHITECT: "1"
+  AI_FACTORY_ENABLE_LLM_ARCHITECT: '1'
 
 jobs:
   test:
@@ -61,167 +60,107 @@ jobs:
         run: python -m factory "Create a research assistant"
       - name: Run example tests
         run: python -m unittest discover -s factory/examples -p 'test_*.py'
-      - name: Run Patch Gate unit tests
+      - name: Run Patch Gate tests
         run: python -m unittest factory.examples.test_patch_gate
       - name: Run Patch Gate demonstration
         run: python -m factory.examples.patch_gate_demo
-      - name: Run autonomous Factory demonstration with real LLM revision
+      - name: Run autonomous demonstration
         env:
           AI_FACTORY_API_KEY: ${{ secrets.AI_FACTORY_API_KEY }}
-          AI_FACTORY_ENABLE_LLM_ARCHITECT: "1"
-          AI_FACTORY_ENABLE_LLM_REVISION: "1"
+          AI_FACTORY_ENABLE_LLM_ARCHITECT: '1'
+          AI_FACTORY_ENABLE_LLM_REVISION: '1'
         run: python -m factory.examples.autonomous_demo
-      - name: Diagnose configured provider chain
-        run: |
-          if [ -z "$AI_FACTORY_GEMINI_KEY" ] && [ -z "$AI_FACTORY_GROQ_KEY" ] && [ -z "$AI_FACTORY_GITHUB_TOKEN" ] && [ -z "$AI_FACTORY_OPENAI_KEY" ] && [ -z "$AI_FACTORY_CEREBRAS_KEY" ] && [ -z "$AI_FACTORY_OPENROUTER_KEY" ]; then
-            echo "No AI provider secrets are configured; skipping provider diagnostics."
-            exit 0
-          fi
-          python -m factory.providers.provider_check
-      - name: Prepare clean production output directory
-        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Diagnose provider chain
+        run: python -m factory.providers.provider_check
+      - name: Prepare production output
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         run: rm -rf generated/production
-      - name: Run requested Factory goal
-        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Generate production system
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           goal='${{ inputs.goal }}'
-          if [ -z "$goal" ]; then
-            goal='Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery.'
-          fi
+          if [ -z "$goal" ]; then goal='Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery.'; fi
           attempts='${{ inputs.max_attempts }}'
           if [ -z "$attempts" ]; then attempts='5'; fi
           python -m factory "$goal" --workspace generated/production --max-attempts "$attempts"
-          echo "Generated production files:"
-          find generated/production -type f -print | sort
-      - name: Verify standalone generated system
-        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Verify standalone system
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         run: |
           set -e
           root="generated/production"
-          if [ ! -f "$root/team.json" ] && [ ! -f "$root/runtime/provider.py" ]; then
-            candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
-            count=$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)
-            if [ "$count" -eq 1 ]; then root=$(printf '%s\n' "$candidates" | head -n 1); fi
-          fi
-          echo "Standalone system root: $root"
-          test -f "$root/team.json"
-          test -f "$root/run.py"
-          test -f "$root/runtime/provider.py"
-          test -f "$root/requirements.txt"
-          find "$root" -type f -print | grep -E '/SPEC\.json$'
-          find "$root" -type f -print | grep -E '/agents/.*/agent\.py$'
-          if grep -R "from factory\." "$root"; then
-            echo "ERROR: generated system still imports Factory runtime."
-            exit 1
-          fi
+          candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
+          if [ -f "$root/team.json" ]; then :; elif [ "$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)" -eq 1 ]; then root=$(printf '%s\n' "$candidates" | head -n1); else exit 1; fi
+          test -f "$root/team.json"; test -f "$root/run.py"; test -f "$root/runtime/provider.py"; test -f "$root/requirements.txt"
+          if grep -R "from factory\." "$root"; then exit 1; fi
           python - "$root" <<'PY'
+          import json,sys
           from pathlib import Path
-          import json, sys
-          root = Path(sys.argv[1])
-          data = json.loads((root / "team.json").read_text(encoding="utf-8"))
-          names = {str(m.get("name", "")).lower() for m in data.get("members", [])}
-          required = {"researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"}
-          missing = sorted(required - names)
-          if missing:
-              raise SystemExit(f"ERROR: generated team missing: {', '.join(missing)}")
-          if data.get("entrypoint") != "run.py":
-              raise SystemExit("ERROR: generated team has no run.py entrypoint")
-          print("Verified six-agent standalone runnable team")
+          root=Path(sys.argv[1]); data=json.loads((root/'team.json').read_text())
+          required={'researcher','verifier','market_analyst','risk_analyst','writer','reviewer'}
+          names={str(x.get('name','')).lower() for x in data.get('members',[])}
+          missing=required-names
+          if missing: raise SystemExit(f'missing agents: {sorted(missing)}')
+          if data.get('entrypoint')!='run.py': raise SystemExit('missing run.py entrypoint')
+          print('Verified six-agent standalone runnable team')
           PY
-      - name: Run generated system end to end with deterministic offline provider
-        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Run generated system end to end
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         env:
-          AI_FACTORY_MOCK: "1"
+          AI_FACTORY_MOCK: '1'
         run: |
           set -e
           root="generated/production"
-          if [ ! -f "$root/team.json" ] && [ ! -f "$root/run.py" ]; then
-            candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
-            count=$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)
-            if [ "$count" -eq 1 ]; then root=$(printf '%s\n' "$candidates" | head -n 1); fi
-          fi
+          candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
+          if [ ! -f "$root/run.py" ] && [ "$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)" -eq 1 ]; then root=$(printf '%s\n' "$candidates" | head -n1); fi
           cd "$root"
           python -m compileall .
           python - <<'PY'
           import importlib
           from pathlib import Path
-          agents = []
-          for p in sorted(Path("agents").glob("*/agent.py")):
-              name = p.parent.name
-              module = importlib.import_module(f"agents.{name}.agent")
-              if not hasattr(module, "Agent"):
-                  raise SystemExit(f"Missing Agent class: {name}")
-              agents.append(name)
-          expected = ["market_analyst", "researcher", "reviewer", "risk_analyst", "verifier", "writer"]
-          if sorted(agents) != expected:
-              raise SystemExit(f"Unexpected generated agents: {agents}")
-          runner = importlib.import_module("run")
-          result = runner.run("Should a business expand into a new market?")
-          if result.get("status") != "completed":
-              raise SystemExit(f"Pipeline did not complete: {result}")
-          expected_order = ["researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"]
-          if result.get("agents") != expected_order:
-              raise SystemExit(f"Wrong agent execution order: {result.get('agents')}")
-          if not result.get("final_report"):
-              raise SystemExit("Pipeline produced no final report")
-          print("END-TO-END GENERATED SYSTEM PASSED")
-          print("Execution order:", " -> ".join(result["agents"]))
-          print("Final report:", result["final_report"]["response"])
+          expected=['market_analyst','researcher','reviewer','risk_analyst','verifier','writer']
+          found=sorted(p.parent.name for p in Path('agents').glob('*/agent.py'))
+          if found!=expected: raise SystemExit(f'unexpected agents: {found}')
+          for name in found:
+              if not hasattr(importlib.import_module(f'agents.{name}.agent'),'Agent'): raise SystemExit(f'missing Agent class: {name}')
+          result=importlib.import_module('run').run('Should a business expand into a new market?')
+          if result.get('status')!='completed': raise SystemExit(f'pipeline failed: {result}')
+          if result.get('agents')!=['researcher','verifier','market_analyst','risk_analyst','writer','reviewer']: raise SystemExit('wrong execution order')
+          if not result.get('final_report'): raise SystemExit('missing final report')
+          print('END-TO-END GENERATED SYSTEM PASSED')
           PY
-      - name: Optional live provider smoke test
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_real_provider_smoke }}
-        continue-on-error: true
-        env:
-          AI_FACTORY_MOCK: "0"
-        run: |
-          set -o pipefail
-          root="generated/production"
-          if [ ! -f "$root/team.json" ] && [ ! -f "$root/run.py" ]; then
-            candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
-            count=$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)
-            if [ "$count" -eq 1 ]; then root=$(printf '%s\n' "$candidates" | head -n 1); fi
-          fi
-          cd "$root"
-          python run.py "Live provider diagnostic question" --json
-      - name: Write repository-visible artifact manifest
-        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      - name: Write artifact manifest
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         run: |
           python - <<'PY'
           from pathlib import Path
           import json
-          root = Path("generated/production")
-          for cache in root.rglob("__pycache__"):
-              for child in cache.iterdir(): child.unlink()
+          root=Path('generated/production')
+          for cache in root.rglob('__pycache__'):
+              for p in cache.iterdir(): p.unlink()
               cache.rmdir()
-          for pyc in root.rglob("*.pyc"):
-              pyc.unlink()
-          files = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file())
-          specs = sorted(root.rglob("SPEC.json"))
-          if len(specs) != 1:
-              raise SystemExit(f"Expected exactly one generated SPEC.json, found {len(specs)}")
-          spec = json.loads(specs[0].read_text(encoding="utf-8"))
-          goal = str(spec.get("purpose", "")).strip()
-          if not goal:
-              raise SystemExit("Generated SPEC.json has no non-empty purpose; refusing to publish an ambiguous artifact goal")
-          manifest = {"artifact_type": "standalone_generated_ai_system", "goal": goal, "files": files, "entrypoint": "run.py", "end_to_end_test": "passed"}
-          (root / "FACTORY_ARTIFACT.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          for p in root.rglob('*.pyc'): p.unlink()
+          # There are agent-level SPEC.json files. The single system SPEC is the SPEC
+          # whose parent directory also contains team.json/run.py.
+          specs=[p for p in root.rglob('SPEC.json') if (p.parent/'team.json').is_file() and (p.parent/'run.py').is_file()]
+          if len(specs)!=1: raise SystemExit(f'Expected exactly one top-level generated SPEC.json, found {len(specs)}')
+          spec=json.loads(specs[0].read_text(encoding='utf-8'))
+          goal=str(spec.get('purpose','')).strip()
+          if not goal: raise SystemExit('Generated SPEC.json has no non-empty purpose')
+          files=sorted(str(p.relative_to(root)) for p in root.rglob('*') if p.is_file())
+          (root/'FACTORY_ARTIFACT.json').write_text(json.dumps({'artifact_type':'standalone_generated_ai_system','goal':goal,'files':files,'entrypoint':'run.py','end_to_end_test':'passed'},indent=2)+'\n',encoding='utf-8')
+          print('Artifact manifest validated:', goal)
           PY
-      - name: Publish generated result to repository
-        if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref == 'refs/heads/main' && success() }}
+      - name: Publish generated result
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && success() }}
         run: |
           git config user.name "AI Factory"
           git config user.email "ai-factory@users.noreply.github.com"
           git add generated/production
-          if git diff --cached --quiet; then
-            echo "No generated output changes to publish."
-          else
-            git commit -m "Publish runnable standalone AI system"
-            git push origin HEAD:main
-          fi
-      - name: Upload generated system artifact
-        if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && always() }}
+          if git diff --cached --quiet; then echo 'No generated output changes.'; else git commit -m 'Publish runnable standalone AI system'; git push origin HEAD:main; fi
+      - name: Upload generated artifact
+        if: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ai-factory-generated-agent-${{ github.run_number }}
