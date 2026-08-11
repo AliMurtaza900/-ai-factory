@@ -85,6 +85,24 @@ jobs:
           attempts='${{ inputs.max_attempts }}'
           if [ -z "$attempts" ]; then attempts='5'; fi
           python -m factory "$goal" --workspace generated/production --max-attempts "$attempts"
+      - name: Normalize generated project name
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
+        run: |
+          set -e
+          root="generated/production"
+          candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
+          if [ -f "$root/team.json" ]; then
+            echo 'Generated system is already rooted at generated/production.'
+          elif [ "$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)" -eq 1 ]; then
+            source=$(printf '%s\n' "$candidates" | head -n1)
+            target="$root/Synthetix-Research-Intelligence-Agency"
+            if [ "$source" != "$target" ]; then mv "$source" "$target"; fi
+            echo "Normalized generated project path to $target"
+          else
+            echo "Expected exactly one generated project directory, found:"
+            printf '%s\n' "$candidates"
+            exit 1
+          fi
       - name: Verify standalone system
         if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         run: |
@@ -155,10 +173,21 @@ jobs:
       - name: Publish generated result
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && success() }}
         run: |
+          set -e
           git config user.name "AI Factory"
           git config user.email "ai-factory@users.noreply.github.com"
           git add generated/production
-          if git diff --cached --quiet; then echo 'No generated output changes.'; else git commit -m 'Publish runnable standalone AI system'; git push origin HEAD:main; fi
+          if git diff --cached --quiet; then
+            echo 'No generated output changes.'
+            exit 0
+          fi
+          git commit -m 'Publish runnable standalone AI system'
+          # The repository can receive provider-hardening commits while this long
+          # workflow is running. Rebase the generated commit onto the latest main
+          # before pushing instead of losing the generated output to a race.
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
       - name: Upload generated artifact
         if: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && always() }}
         uses: actions/upload-artifact@v4
