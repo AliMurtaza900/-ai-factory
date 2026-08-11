@@ -1,6 +1,7 @@
 {
   "artifact_type": "standalone_generated_ai_system",
   "goal": "Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery.",
+  "system_name": "Synthetix-Research-Intelligence-Agency",
   "files": [
     "Synthetix-Research-Intelligence-Agency/SPEC.json",
     "Synthetix-Research-Intelligence-Agency/agents/market_analyst/README.md",

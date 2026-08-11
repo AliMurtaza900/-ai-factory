@@ -153,5 +153,6 @@
     }
   ],
   "validation": "passed",
-  "entrypoint": "run.py"
+  "entrypoint": "run.py",
+  "name": "Synthetix-Research-Intelligence-Agency"
 }
