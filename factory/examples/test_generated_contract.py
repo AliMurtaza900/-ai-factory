@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from factory.run import _build_multi_agent_team, _materialize_team
+from factory.run import CANONICAL_RESEARCH_TEAM_NAME, _build_multi_agent_team, _materialize_team, run_factory
 
 
 EXPECTED_ORDER = ["researcher", "verifier", "market_analyst", "risk_analyst", "writer", "reviewer"]
@@ -52,6 +52,21 @@ class GeneratedContractTests(unittest.TestCase):
         broken[1] = type(broken[1])(broken[1].name, broken[1].role, broken[1].purpose, ["missing_data"], broken[1].outputs)
         team.members = broken
         self.assertTrue(any("missing upstream inputs" in error for error in team.validate()))
+
+    def test_complex_factory_output_has_stable_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_factory(
+                "Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery.",
+                output_root=tmp,
+                max_attempts=1,
+            )
+            self.assertTrue(result.passed)
+            self.assertEqual(result.output_dir.name, CANONICAL_RESEARCH_TEAM_NAME)
+            self.assertEqual(result.output_dir.name, "Synthetix-Research-Intelligence-Agency")
+            spec = (result.output_dir / "SPEC.json").read_text(encoding="utf-8")
+            team = (result.output_dir / "team.json").read_text(encoding="utf-8")
+            self.assertIn(CANONICAL_RESEARCH_TEAM_NAME, spec)
+            self.assertIn(CANONICAL_RESEARCH_TEAM_NAME, team)
 
 
 if __name__ == "__main__":
