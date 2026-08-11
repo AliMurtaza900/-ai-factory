@@ -19,6 +19,19 @@ class FlakyProvider(ModelProvider):
         return ModelResponse("recovered", self.name, "test-model")
 
 
+class StatusCodeProvider(ModelProvider):
+    name = "status-code"
+
+    def __init__(self):
+        self.calls = 0
+
+    def generate(self, prompt, *, system=None):
+        self.calls += 1
+        error = RuntimeError("temporary upstream failure")
+        error.status_code = 429
+        raise error
+
+
 class BrokenProvider(ModelProvider):
     name = "broken"
 
@@ -42,6 +55,16 @@ class ProviderFallbackTests(unittest.TestCase):
         }, clear=False):
             result = FallbackProvider([provider]).generate("hello")
         self.assertEqual(result.text, "recovered")
+        self.assertEqual(provider.calls, 2)
+
+    def test_retries_from_structured_status_code(self):
+        provider = StatusCodeProvider()
+        with patch.dict(os.environ, {
+            "AI_FACTORY_PROVIDER_RETRIES": "1",
+            "AI_FACTORY_PROVIDER_RETRY_DELAY": "0",
+        }, clear=False):
+            with self.assertRaisesRegex(RuntimeError, "All configured AI providers failed"):
+                FallbackProvider([provider]).generate("hello")
         self.assertEqual(provider.calls, 2)
 
     def test_skips_non_transient_failure_and_uses_next_provider(self):
