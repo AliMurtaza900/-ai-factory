@@ -25,6 +25,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ai-factory-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   AI_FACTORY_PROVIDER: gemini
   AI_FACTORY_MODEL: ${{ secrets.AI_FACTORY_MODEL }}
@@ -148,6 +152,21 @@ jobs:
           if not result.get('final_report'): raise SystemExit('missing final report')
           print('END-TO-END GENERATED SYSTEM PASSED')
           PY
+      - name: Run generated system with a real provider
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_real_provider_smoke }}
+        run: |
+          set -e
+          root="generated/production"
+          if [ -d "$root/Synthetix-Research-Intelligence-Agency" ]; then root="$root/Synthetix-Research-Intelligence-Agency"; fi
+          test -n "${AI_FACTORY_GEMINI_KEY:-}" || test -n "${AI_FACTORY_OPENAI_KEY:-}" || test -n "${AI_FACTORY_GROQ_KEY:-}" || test -n "${AI_FACTORY_OPENROUTER_KEY:-}"
+          cd "$root"
+          env -u AI_FACTORY_MOCK python - <<'PY'
+          import importlib
+          result=importlib.import_module('run').run('Give a concise evidence-based answer to: what is one major risk a new business should assess before entering a foreign market?')
+          if result.get('status')!='completed': raise SystemExit(f'real-provider pipeline failed: {result}')
+          if not result.get('final_report'): raise SystemExit('real-provider run produced no final report')
+          print('REAL-PROVIDER GENERATED SYSTEM PASSED')
+          PY
       - name: Write artifact manifest
         if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         run: |
@@ -159,8 +178,6 @@ jobs:
               for p in cache.iterdir(): p.unlink()
               cache.rmdir()
           for p in root.rglob('*.pyc'): p.unlink()
-          # There are agent-level SPEC.json files. The single system SPEC is the SPEC
-          # whose parent directory also contains team.json/run.py.
           specs=[p for p in root.rglob('SPEC.json') if (p.parent/'team.json').is_file() and (p.parent/'run.py').is_file()]
           if len(specs)!=1: raise SystemExit(f'Expected exactly one top-level generated SPEC.json, found {len(specs)}')
           spec=json.loads(specs[0].read_text(encoding='utf-8'))
@@ -182,9 +199,6 @@ jobs:
             exit 0
           fi
           git commit -m 'Publish runnable standalone AI system'
-          # The repository can receive provider-hardening commits while this long
-          # workflow is running. Rebase the generated commit onto the latest main
-          # before pushing instead of losing the generated output to a race.
           git fetch origin main
           git rebase origin/main
           git push origin HEAD:main
