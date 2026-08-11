@@ -6,9 +6,11 @@ import json
 import re
 
 from .autonomous import AutonomousFactory
-from .builder.project import AgentProjectBuilder
 from .learning.pattern_store import PatternStore, SuccessfulPattern
 from .multi_agent.team import AgentTeam, TeamMember
+
+
+CANONICAL_RESEARCH_TEAM_NAME = "Synthetix-Research-Intelligence-Agency"
 
 
 @dataclass(frozen=True)
@@ -114,7 +116,7 @@ def _materialize_team(team: AgentTeam, output_dir: Path) -> None:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(generated.content, encoding="utf-8")
     (output_dir / "run.py").write_text(_orchestrator_module(team), encoding="utf-8")
-    (output_dir / "team.json").write_text(json.dumps({"goal": team.goal, "members": [member.__dict__ for member in team.members], "plan": team.plan(), "validation": "passed", "entrypoint": "run.py"}, indent=2) + "\n", encoding="utf-8")
+    (output_dir / "team.json").write_text(json.dumps({"goal": team.goal, "name": CANONICAL_RESEARCH_TEAM_NAME, "members": [member.__dict__ for member in team.members], "plan": team.plan(), "validation": "passed", "entrypoint": "run.py"}, indent=2) + "\n", encoding="utf-8")
 
 
 def run_factory(goal: str, *, output_root: str | Path = "generated", max_attempts: int = 2) -> ProductionResult:
@@ -126,12 +128,19 @@ def run_factory(goal: str, *, output_root: str | Path = "generated", max_attempt
     store = PatternStore()
     reused = len(store.relevant(goal))
     result = AutonomousFactory().run(goal, max_attempts=max_attempts)
-    safe_name = re.sub(r"[^a-zA-Z0-9._-]+", "-", result.design.spec.name.strip() or "generated-agent").strip("-") or "generated-agent"
+    complex_goal = _is_complex_multi_agent_goal(goal)
+    generated_name = result.design.spec.name.strip() if result.design.spec.name.strip() else "generated-agent"
+    safe_name = re.sub(r"[^a-zA-Z0-9._-]+", "-", generated_name).strip("-") or "generated-agent"
+    if complex_goal:
+        # Complex research teams have a stable public identity. This prevents
+        # LLM-generated names from changing artifact paths between runs and
+        # eliminates stale/duplicate production directories.
+        safe_name = CANONICAL_RESEARCH_TEAM_NAME
     output_dir = Path(output_root) / safe_name
-    if _is_complex_multi_agent_goal(goal):
+    if complex_goal:
         team = _build_multi_agent_team(goal)
         _materialize_team(team, output_dir)
-        (output_dir / "SPEC.json").write_text(json.dumps({"type": "multi-agent-team", "name": safe_name, "purpose": goal, "members": [member.__dict__ for member in team.members], "entrypoint": "run.py"}, indent=2) + "\n", encoding="utf-8")
+        (output_dir / "SPEC.json").write_text(json.dumps({"type": "multi-agent-team", "name": CANONICAL_RESEARCH_TEAM_NAME, "purpose": goal, "members": [member.__dict__ for member in team.members], "entrypoint": "run.py"}, indent=2) + "\n", encoding="utf-8")
     else:
         output_dir.mkdir(parents=True, exist_ok=True)
         for generated in result.design.files:
