@@ -31,6 +31,7 @@
     "create-a-multi-agent-ai-research-company-that-re/run.py",
     "create-a-multi-agent-ai-research-company-that-re/runtime/__init__.py",
     "create-a-multi-agent-ai-research-company-that-re/runtime/provider.py",
+    "create-a-multi-agent-ai-research-company-that-re/runtime/web_research.py",
     "create-a-multi-agent-ai-research-company-that-re/team.json"
   ],
   "entrypoint": "run.py",
