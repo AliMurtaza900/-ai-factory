@@ -7,10 +7,10 @@ from .base import ModelProvider, ModelResponse
 
 
 _TRANSIENT_MARKERS = (
-    "429", "408", "500", "502", "503", "504",
+    "408", "409", "425", "429", "500", "502", "503", "504",
     "rate limit", "too many requests", "temporarily unavailable",
     "timed out", "timeout", "connection reset", "connection aborted",
-    "service unavailable", "gateway timeout",
+    "connection refused", "service unavailable", "gateway timeout",
 )
 
 
@@ -25,7 +25,31 @@ class FallbackProvider(ModelProvider):
         self.retry_base_delay = max(0.0, float(os.getenv("AI_FACTORY_PROVIDER_RETRY_DELAY", "1")))
 
     @staticmethod
-    def _is_transient(exc: Exception) -> bool:
+    def _status_code(exc: Exception) -> int | None:
+        """Read common HTTP status attributes without depending on one SDK."""
+        for name in ("status_code", "status", "code", "http_status"):
+            value = getattr(exc, name, None)
+            if isinstance(value, bool):
+                continue
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                continue
+            if 100 <= number <= 599:
+                return number
+        response = getattr(exc, "response", None)
+        value = getattr(response, "status_code", None)
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return None
+        return number if 100 <= number <= 599 else None
+
+    @classmethod
+    def _is_transient(cls, exc: Exception) -> bool:
+        status = cls._status_code(exc)
+        if status in {408, 409, 425, 429, 500, 502, 503, 504}:
+            return True
         text = str(exc).lower()
         return any(marker in text for marker in _TRANSIENT_MARKERS)
 
