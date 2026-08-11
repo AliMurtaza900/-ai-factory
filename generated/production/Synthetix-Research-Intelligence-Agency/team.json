@@ -1,5 +1,6 @@
 {
   "goal": "Create a multi-agent AI research company that receives a business question, researches the topic using multiple sources, verifies and compares the evidence, performs financial and market analysis, identifies risks and uncertainties, writes an executive report, and has a final reviewer validate the report before delivery.",
+  "name": "Synthetix-Research-Intelligence-Agency",
   "members": [
     {
       "name": "researcher",
@@ -153,6 +154,5 @@
     }
   ],
   "validation": "passed",
-  "entrypoint": "run.py",
-  "name": "Synthetix-Research-Intelligence-Agency"
+  "entrypoint": "run.py"
 }
