@@ -96,17 +96,34 @@ jobs:
           root="generated/production"
           candidates=$(find "$root" -mindepth 1 -maxdepth 1 -type d | sort)
           if [ -f "$root/team.json" ]; then
-            echo 'Generated system is already rooted at generated/production.'
+            project_root="$root"
           elif [ "$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)" -eq 1 ]; then
             source=$(printf '%s\n' "$candidates" | head -n1)
             target="$root/Synthetix-Research-Intelligence-Agency"
             if [ "$source" != "$target" ]; then mv "$source" "$target"; fi
-            echo "Normalized generated project path to $target"
+            project_root="$target"
           else
             echo "Expected exactly one generated project directory, found:"
             printf '%s\n' "$candidates"
             exit 1
           fi
+          python - "$project_root" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          canonical='Synthetix-Research-Intelligence-Agency'
+          for path in root.rglob('SPEC.json'):
+              data=json.loads(path.read_text(encoding='utf-8'))
+              data['name']=canonical
+              path.write_text(json.dumps(data, indent=2)+'\n', encoding='utf-8')
+          team=root/'team.json'
+          if team.exists():
+              data=json.loads(team.read_text(encoding='utf-8'))
+              data['name']=canonical
+              team.write_text(json.dumps(data, indent=2)+'\n', encoding='utf-8')
+          print(f'Canonical generated system identity: {canonical}')
+          PY
       - name: Verify standalone system
         if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         run: |
@@ -125,7 +142,11 @@ jobs:
           missing=required-names
           if missing: raise SystemExit(f'missing agents: {sorted(missing)}')
           if data.get('entrypoint')!='run.py': raise SystemExit('missing run.py entrypoint')
-          print('Verified six-agent standalone runnable team')
+          spec_paths=list(root.rglob('SPEC.json'))
+          for path in spec_paths:
+              spec=json.loads(path.read_text())
+              if spec.get('name')!='Synthetix-Research-Intelligence-Agency': raise SystemExit(f'non-canonical SPEC name: {path}')
+          print('Verified canonical six-agent standalone runnable team')
           PY
       - name: Run generated system end to end
         if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
@@ -184,8 +205,8 @@ jobs:
           goal=str(spec.get('purpose','')).strip()
           if not goal: raise SystemExit('Generated SPEC.json has no non-empty purpose')
           files=sorted(str(p.relative_to(root)) for p in root.rglob('*') if p.is_file())
-          (root/'FACTORY_ARTIFACT.json').write_text(json.dumps({'artifact_type':'standalone_generated_ai_system','goal':goal,'files':files,'entrypoint':'run.py','end_to_end_test':'passed'},indent=2)+'\n',encoding='utf-8')
-          print('Artifact manifest validated:', goal)
+          (root/'FACTORY_ARTIFACT.json').write_text(json.dumps({'artifact_type':'standalone_generated_ai_system','goal':goal,'system_name':spec.get('name'),'files':files,'entrypoint':'run.py','end_to_end_test':'passed'},indent=2)+'\n',encoding='utf-8')
+          print('Artifact manifest validated:', spec.get('name'), goal)
           PY
       - name: Publish generated result
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && success() }}
