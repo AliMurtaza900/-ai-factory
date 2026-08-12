@@ -13,9 +13,9 @@ CANONICAL = "Synthetix-Research-Intelligence-Agency"
 
 class ProductionHardeningTests(unittest.TestCase):
     def test_no_secret_like_values_in_tracked_source(self):
-        # Avoid embedding the exact secret prefix in the detector source itself.
+        # Match actual key-shaped values, not the provider-prefix text used in CI regexes.
         secret_patterns = [
-            re.compile(r"(?:A[Ii]za|sk-[A-Za-z0-9_-]{20,})"),
+            re.compile(r"(?:A[Ii]za[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9_-]{20,})"),
             re.compile(r"(?:api[_-]?key|authorization|bearer)\s*[:=]\s*['\"][^'\"]{12,}['\"]", re.I),
         ]
         for path in REPO_ROOT.rglob("*"):
@@ -52,8 +52,8 @@ class ProductionHardeningTests(unittest.TestCase):
     def test_artifact_manifest_is_complete_and_hashed(self):
         manifest_path = PRODUCTION / "FACTORY_ARTIFACT.json"
         # The manifest is created later in the production workflow. When this
-        # regression suite runs before that step, absence is expected; a final
-        # post-manifest validation is performed by the workflow.
+        # regression suite runs before that step, absence is expected; the
+        # generated artifact is validated by the final production gate.
         if not manifest_path.is_file():
             return
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
