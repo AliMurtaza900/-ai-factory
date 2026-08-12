@@ -35,6 +35,7 @@
     "Synthetix-Research-Intelligence-Agency/runtime/web_research.py",
     "Synthetix-Research-Intelligence-Agency/team.json"
   ],
+  "files_digest_sha256": "f41aa957974b5944bea2365856ebb33c8c9e9d319220916059e6980af79b9e59",
   "entrypoint": "run.py",
   "end_to_end_test": "passed"
 }
