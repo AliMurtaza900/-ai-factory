@@ -133,6 +133,7 @@ jobs:
           if [ -f "$root/team.json" ]; then :; elif [ "$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)" -eq 1 ]; then root=$(printf '%s\n' "$candidates" | head -n1); else exit 1; fi
           test -f "$root/team.json"; test -f "$root/run.py"; test -f "$root/runtime/provider.py"; test -f "$root/requirements.txt"
           if grep -R "from factory\." "$root"; then exit 1; fi
+          if grep -R -E "(AIza|sk-[A-Za-z0-9_-]{20,})" "$root"; then exit 1; fi
           python - "$root" <<'PY'
           import json,sys
           from pathlib import Path
@@ -148,6 +149,9 @@ jobs:
               if spec.get('name')!='Synthetix-Research-Intelligence-Agency': raise SystemExit(f'non-canonical SPEC name: {path}')
           print('Verified canonical six-agent standalone runnable team')
           PY
+      - name: Run production hardening regression tests
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
+        run: python -m unittest factory.examples.test_production_hardening
       - name: Run generated system end to end
         if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         env:
@@ -193,6 +197,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import hashlib
           import json
           root=Path('generated/production')
           for cache in root.rglob('__pycache__'):
@@ -205,7 +210,12 @@ jobs:
           goal=str(spec.get('purpose','')).strip()
           if not goal: raise SystemExit('Generated SPEC.json has no non-empty purpose')
           files=sorted(str(p.relative_to(root)) for p in root.rglob('*') if p.is_file())
-          (root/'FACTORY_ARTIFACT.json').write_text(json.dumps({'artifact_type':'standalone_generated_ai_system','goal':goal,'system_name':spec.get('name'),'files':files,'entrypoint':'run.py','end_to_end_test':'passed'},indent=2)+'\n',encoding='utf-8')
+          digest=hashlib.sha256()
+          for relative in files:
+              digest.update(relative.encode())
+              digest.update(b'\0')
+              digest.update((root/relative).read_bytes())
+          (root/'FACTORY_ARTIFACT.json').write_text(json.dumps({'artifact_type':'standalone_generated_ai_system','goal':goal,'system_name':spec.get('name'),'files':files,'files_digest_sha256':digest.hexdigest(),'entrypoint':'run.py','end_to_end_test':'passed'},indent=2)+'\n',encoding='utf-8')
           print('Artifact manifest validated:', spec.get('name'), goal)
           PY
       - name: Publish generated result
