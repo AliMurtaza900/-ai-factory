@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import hashlib
 from pathlib import Path
+import threading
 import time
 from typing import Any, Callable, Iterable
 
@@ -28,23 +29,32 @@ class ProductionPipeline:
     def __init__(self, store: JobStore | None = None, workspace_root: str | Path = "data/workspaces") -> None:
         self.store = store or JobStore()
         self.workspace_root = Path(workspace_root)
+        self._lock = threading.RLock()
 
     @staticmethod
     def job_id(goal: str) -> str:
         digest = hashlib.sha256(goal.strip().encode("utf-8")).hexdigest()[:16]
         return f"job-{digest}"
 
-    def run(self, goal: str, stages: Iterable[Stage], metadata: dict[str, Any] | None = None) -> JobState:
-        if not goal.strip():
+    def run(
+        self,
+        goal: str,
+        stages: Iterable[Stage],
+        metadata: dict[str, Any] | None = None,
+        job_id: str | None = None,
+    ) -> JobState:
+        if not isinstance(goal, str) or not goal.strip():
             raise ValueError("goal must be non-empty")
         stages = list(stages)
-        job_id = self.job_id(goal)
+        resolved_job_id = job_id or self.job_id(goal)
         try:
-            job = self.store.load(job_id)
+            job = self.store.load(resolved_job_id)
         except FileNotFoundError:
-            job = JobState(job_id=job_id, goal=goal, metadata=metadata or {})
+            job = JobState(job_id=resolved_job_id, goal=goal.strip(), metadata=metadata or {})
             self.store.save(job)
-        workspace = self.workspace_root / job_id
+        if job.goal != goal.strip():
+            raise ValueError(f"job {resolved_job_id} already belongs to a different goal")
+        workspace = self.workspace_root / resolved_job_id
         context: dict[str, Any] = dict(job.metadata)
         for state in job.stages.values():
             if state.status == "completed":
@@ -70,6 +80,10 @@ class ProductionPipeline:
         self.store.save(job)
         return job
 
+    def _save(self, job: JobState) -> None:
+        with self._lock:
+            self.store.save(job)
+
     def _run_parallel(self, job: JobState, context: dict[str, Any], workspace: Path, stages: list[Stage]) -> None:
         with ThreadPoolExecutor(max_workers=len(stages)) as pool:
             futures = [pool.submit(self._run_stage, job, context, workspace, stage) for stage in stages]
@@ -77,34 +91,39 @@ class ProductionPipeline:
                 future.result()
 
     def _run_stage(self, job: JobState, context: dict[str, Any], workspace: Path, stage: Stage) -> None:
-        state = job.stage(stage.name)
-        if state.status == "completed":
-            return
+        with self._lock:
+            state = job.stage(stage.name)
+            if state.status == "completed":
+                return
         workspace.mkdir(parents=True, exist_ok=True)
         last_error: Exception | None = None
         for attempt in range(1, stage.retries + 2):
-            state.status = "running"
-            state.attempts = attempt
-            state.started_at = state.started_at or job.updated_at
-            state.error = None
-            self.store.save(job)
+            with self._lock:
+                state = job.stage(stage.name)
+                state.status = "running"
+                state.attempts = attempt
+                state.started_at = state.started_at or job.updated_at
+                state.error = None
+                self.store.save(job)
             try:
                 output = stage.run(dict(context), workspace)
                 if not isinstance(output, dict):
                     raise RuntimeError(f"stage {stage.name} must return a dict")
-                state.output = output
-                state.status = "completed"
-                state.finished_at = job.updated_at
-                context[stage.name] = output
-                self.store.save(job)
+                with self._lock:
+                    state.output = output
+                    state.status = "completed"
+                    context[stage.name] = output
+                    self.store.save(job)
                 return
             except Exception as exc:
                 last_error = exc
-                state.error = str(exc)[:4000]
-                state.status = "retrying" if attempt <= stage.retries else "failed"
-                self.store.save(job)
+                with self._lock:
+                    state.error = str(exc)[:4000]
+                    state.status = "retrying" if attempt <= stage.retries else "failed"
+                    self.store.save(job)
                 if attempt <= stage.retries:
                     time.sleep(min(2 ** (attempt - 1), 8))
-        job.status = "failed"
-        self.store.save(job)
+        with self._lock:
+            job.status = "failed"
+            self.store.save(job)
         raise RuntimeError(f"stage {stage.name} failed after {stage.retries + 1} attempts: {last_error}")
