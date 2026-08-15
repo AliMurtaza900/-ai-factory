@@ -19,8 +19,8 @@ class VideoAdapter(Protocol):
 class CommandVideoAdapter:
     """Run an existing video system through a stable JSON contract.
 
-    The command receives GOAL and WORKSPACE environment variables and must
-    print a JSON object. This avoids coupling the Factory to one vendor or
+    The command receives GOAL, WORKSPACE and JOB_ID environment variables and
+    must print a JSON object. This avoids coupling the Factory to one vendor or
     one user's existing video stack.
     """
 
@@ -40,6 +40,9 @@ class CommandVideoAdapter:
         workspace.mkdir(parents=True, exist_ok=True)
         env = os.environ.copy()
         env.update({"GOAL": goal, "WORKSPACE": str(workspace)})
+        job_id_file = workspace / "job_id.txt"
+        if job_id_file.exists():
+            env["JOB_ID"] = job_id_file.read_text(encoding="utf-8").strip()
         completed = subprocess.run(
             shlex.split(self.command),
             cwd=workspace,
