@@ -1,0 +1,25 @@
+name: Production System Gate
+
+on:
+  push:
+    branches: [main, production-complete]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile production modules
+        run: python -m compileall factory/production
+      - name: Run production regression tests
+        run: python -m unittest factory.examples.test_production_system
+      - name: Run complete example suite
+        run: python -m unittest discover -s factory/examples -p 'test_*.py'
