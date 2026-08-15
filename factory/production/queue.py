@@ -5,10 +5,7 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import threading
-from typing import Any
-
-from .job import JobStore
-from .orchestrator import ProductionOrchestrator
+from typing import Any, Callable
 
 
 @dataclass
@@ -52,7 +49,7 @@ class ProductionQueue:
         with self._lock:
             return [x for x in self._load() if x.status == "queued"]
 
-    def run_next(self, orchestrator: ProductionOrchestrator) -> QueueItem | None:
+    def run_next(self, runner: Callable[[str, dict[str, Any]], dict[str, Any]]) -> QueueItem | None:
         with self._lock:
             items = self._load()
             index = next((i for i, x in enumerate(items) if x.status == "queued"), None)
@@ -62,8 +59,8 @@ class ProductionQueue:
             item.status = "running"
             self._save(items)
         try:
-            job = orchestrator.run(item.goal, metadata=item.metadata)
-            item.job_id = job.job_id
+            result = runner(item.goal, item.metadata)
+            item.job_id = result.get("job_id")
             item.status = "completed"
         except Exception:
             item.status = "failed"
