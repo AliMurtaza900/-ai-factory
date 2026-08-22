@@ -1,68 +1,87 @@
 # AI Factory
 
-An autonomous AI system that designs, builds, tests, deploys, and improves other AI agents and automated systems.
+An autonomous AI system that designs, builds, tests, deploys, and improves AI agents and automated systems — now with a production pipeline for original cinematic 3D animated short films.
 
-## Current production architecture
+## Cinematic animated-film pipeline
 
-The repository now contains the original agent-generation Factory plus a production execution layer designed for long-running content/video jobs.
+The production layer no longer has to treat a video as a slideshow of independent AI images. A story idea is compiled into a persistent film plan before rendering:
 
-### Factory core
+`story idea -> film bible -> character/world continuity -> full storyboard -> shot rendering -> voice/dialogue -> music/SFX -> shot QC -> targeted regeneration -> final edit -> YouTube`
 
-- Agent specifications and project materialization
-- Multi-agent team generation
-- Provider abstraction with caching and fallback
-- Evaluation and regression testing
-- Autonomous improvement and guarded revision flow
-- Artifact manifests and standalone generated-system validation
-- GitHub publishing helpers
+The cinematic planner creates:
 
-### Production execution layer
+- Original characters with stable appearance, personality, voice and movement style.
+- Persistent locations, lighting, time-of-day and continuity notes.
+- A complete shot-by-shot storyboard with camera, action, emotion, dialogue, sound and lighting.
+- Cinematic direction focused on expressive 3D animation, motivated camera movement and professional lighting.
+- Explicit constraints preventing character drift and still-image slideshow behavior.
 
-`factory.production` adds the missing operational layer:
+### Automatic bad-shot regeneration
 
-- **Durable jobs** — JSON-backed state survives process/server restarts.
-- **Stage checkpoints** — completed stages are skipped when a job resumes.
-- **Bounded retries** — transient production failures are retried without infinite loops.
-- **Parallel stages** — independent stages can run concurrently.
-- **Quality gates** — video artifacts and upload results are validated before completion.
-- **Video adapter contract** — integrates an existing video generator/uploader without coupling the Factory to one vendor.
-- **Feedback store** — records views, CTR, retention and engagement for later optimization.
-- **CLI** — runs a resumable production job from one command.
+A cinematic renderer may return per-shot quality scores for:
 
-## Integrating an existing video system
+`character_consistency, animation, facial_expression, cinematography, lighting, environment, continuity, audio_sync`
 
-The existing video generator/uploader can be connected through `CommandVideoAdapter`.
+Every score must be at least `75`. Failed shots create `regeneration_request.json` and the render stage retries. The next renderer attempt receives the exact failed shot IDs and reasons so it can regenerate only what is broken while preserving adjacent-shot continuity.
 
-Set:
+## Renderer contract
+
+The existing video generator/uploader remains the backend. Set:
 
 ```bash
 export AI_FACTORY_VIDEO_COMMAND="python /path/to/your_video_system.py"
 ```
 
-The command receives `GOAL` and `WORKSPACE` environment variables and must print a JSON object such as:
+In cinematic mode the command receives:
+
+- `GOAL` — original story idea.
+- `WORKSPACE` — durable job workspace.
+- `CINEMATIC_MODE=1` — tells the backend to use the animated-film pipeline.
+- `FILM_PLAN_PATH` — complete `film_plan.json` produced before rendering.
+- `REGENERATION_REQUEST_PATH` — present when a previous render failed shot-level QC.
+
+The backend must print one JSON object. A cinematic result should look like:
 
 ```json
 {
   "status": "completed",
   "video": "video.mp4",
-  "title": "Example title",
-  "description": "Example description",
-  "video_id": "youtube-id"
+  "title": "Original animated short",
+  "description": "...",
+  "video_id": "youtube-id",
+  "shots": [
+    {
+      "id": "S01_SH01",
+      "continuity_ok": true,
+      "quality": {
+        "character_consistency": 92,
+        "animation": 88,
+        "facial_expression": 90,
+        "cinematography": 91,
+        "lighting": 94,
+        "environment": 89,
+        "continuity": 93,
+        "audio_sync": 90
+      }
+    }
+  ]
 }
 ```
 
-Then run:
+If `shots` is omitted, the adapter stays backward-compatible with the existing renderer but can only perform artifact-level QC; it cannot automatically judge individual shots.
+
+## Run
 
 ```bash
-python -m factory.production "Create today's best video about AI automation"
+python -m factory.production "A lonely young inventor builds a tiny flying machine to reunite with a lost friend"
 ```
 
-The Factory persists the job, retries failed production, validates the rendered artifact, validates the upload result, and can resume from the last completed stage.
+The job state and film plan are persisted, so interrupted production can resume without rebuilding completed stages.
 
-## CI
+## Important creative constraint
 
-The repository has separate CI coverage for the Factory and the production execution layer. The production gate compiles the new modules and runs the complete example regression suite.
+Use premium theatrical animation as a quality reference, but all generated stories, characters, worlds, costumes and designs must be original. Do not copy existing studio characters, franchises or proprietary assets.
 
-## Security and reliability
+## Existing Factory capabilities
 
-Production code never requires API keys to be written into generated artifacts. Provider failures are isolated through the provider abstraction, and production jobs use bounded retries plus durable checkpoints rather than restarting the whole workflow after every failure.
+The repository also retains the original agent-generation Factory, provider abstraction, evaluation/regression testing, autonomous improvement, artifact manifests, GitHub publishing helpers, durable production jobs, retries, checkpoints and feedback storage.
