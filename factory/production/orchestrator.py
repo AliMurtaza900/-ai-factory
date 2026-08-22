@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +42,7 @@ def run_video_factory(
         }
 
     def render_film(context: dict[str, Any], workspace: Path) -> dict[str, Any]:
-        plan_data = __import__("json").loads((workspace / "film_plan.json").read_text(encoding="utf-8"))
+        plan_data = json.loads((workspace / "film_plan.json").read_text(encoding="utf-8"))
         plan = _plan_from_json(plan_data)
         result = adapter.run(goal, workspace)
         qc = validate_cinematic_result(result, plan, workspace)
@@ -82,5 +83,4 @@ def run_video_factory(
 
 def _plan_from_json(data: dict[str, Any]) -> FilmPlan:
     """Rehydrate the persisted plan without requiring the original LLM call."""
-    from .cinematic import CinematicPlanner
     return CinematicPlanner._from_dict(data, str(data.get("title", "film")))
