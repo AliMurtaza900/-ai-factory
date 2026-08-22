@@ -17,11 +17,11 @@ class VideoAdapter(Protocol):
 
 @dataclass
 class CommandVideoAdapter:
-    """Run an existing video system through a stable JSON contract.
+    """Run a video system through a stable JSON contract.
 
-    The command receives GOAL, WORKSPACE and JOB_ID environment variables and
-    must print a JSON object. This avoids coupling the Factory to one vendor or
-    one user's existing video stack.
+    In cinematic mode the command additionally receives FILM_PLAN_PATH,
+    REGENERATION_REQUEST_PATH and CINEMATIC_MODE. Existing generators remain
+    compatible because the original GOAL/WORKSPACE/JOB_ID contract is retained.
     """
 
     command: str | None = None
@@ -43,6 +43,17 @@ class CommandVideoAdapter:
         job_id_file = workspace / "job_id.txt"
         if job_id_file.exists():
             env["JOB_ID"] = job_id_file.read_text(encoding="utf-8").strip()
+
+        film_plan = workspace / "film_plan.json"
+        regen = workspace / "regeneration_request.json"
+        if film_plan.exists():
+            env.update({
+                "CINEMATIC_MODE": "1",
+                "FILM_PLAN_PATH": str(film_plan),
+            })
+        if regen.exists():
+            env["REGENERATION_REQUEST_PATH"] = str(regen)
+
         completed = subprocess.run(
             shlex.split(self.command),
             cwd=workspace,
